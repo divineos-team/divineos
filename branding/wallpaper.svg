@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080">
+  <title>divineOS — Tide</title>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0.2" y2="1">
+      <stop offset="0" stop-color="#4C82C8"/>
+      <stop offset="0.28" stop-color="#8FB5E2"/>
+      <stop offset="0.5" stop-color="#DCE6F3"/>
+      <stop offset="1" stop-color="#8DB4E4"/>
+    </linearGradient>
+    <linearGradient id="deep" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2B2FCF"/>
+      <stop offset="0.3" stop-color="#1D4ED8"/>
+      <stop offset="0.65" stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#7DB7F5"/>
+    </linearGradient>
+    <linearGradient id="back" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#A5C8F3" stop-opacity="0"/>
+      <stop offset="1" stop-color="#6FA6EC"/>
+    </linearGradient>
+    <filter id="edge" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="2"/></filter>
+    <!-- canvas-sized filter regions so wide blurs never clip into hard edges -->
+    <filter id="soft" filterUnits="userSpaceOnUse" x="0" y="0" width="1920" height="1080"><feGaussianBlur stdDeviation="40"/></filter>
+    <filter id="haze" filterUnits="userSpaceOnUse" x="0" y="0" width="1920" height="1080"><feGaussianBlur stdDeviation="110"/></filter>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#sky)"/>
+  <ellipse cx="620" cy="330" rx="620" ry="150" fill="#FFFFFF" opacity="0.55" filter="url(#haze)"/>
+  <!-- back swell -->
+  <path d="M760 620C1100 560 1500 360 1920 170V1080H760Z" fill="url(#back)" opacity="0.7" filter="url(#soft)"/>
+  <!-- the tide: a sharp cobalt crest that softens into light water -->
+  <path d="M0 360C480 420 860 660 1260 640S1760 470 1920 420V1080H0Z" fill="url(#deep)" filter="url(#edge)"/>
+  <!-- cyan glow riding under the crest -->
+  <path d="M0 470C480 520 860 760 1260 740S1760 560 1920 520" fill="none" stroke="#22D3EE" stroke-width="70" opacity="0.55" filter="url(#soft)"/>
+  <!-- crest highlight -->
+  <path d="M0 360C480 420 860 660 1260 640S1760 470 1920 420" fill="none" stroke="#FFFFFF" stroke-width="2.5" opacity="0.7" filter="url(#edge)"/>
+  <ellipse cx="420" cy="980" rx="700" ry="160" fill="#1E3A8A" opacity="0.35" filter="url(#haze)"/>
+</svg>

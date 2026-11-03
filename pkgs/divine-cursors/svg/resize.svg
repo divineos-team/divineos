@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 32 32">
+  <!-- Vertical double arrow; make-cursors.sh turns it by {ROT} for the other directions. -->
+  <defs>
+    <path id="l" d="M16 9v14" fill="none" stroke-linecap="round"/>
+    <path id="t" d="M16 4l5 5.6H11zM16 28l5-5.6H11z" stroke-linejoin="round"/>
+  </defs>
+  <g transform="rotate({ROT} 16 16)">
+    <use xlink:href="#l" stroke="#fff" stroke-width="4.4"/>
+    <use xlink:href="#t" fill="#fff" stroke="#fff" stroke-width="2.8"/>
+    <use xlink:href="#l" stroke="#0E1220" stroke-width="1.8"/>
+    <use xlink:href="#t" fill="#0E1220"/>
+  </g>
+</svg>

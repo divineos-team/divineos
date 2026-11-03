@@ -1,0 +1,423 @@
+#!/usr/bin/env bash
+# divine-install's root half: reads the machine, then partitions, formats and installs divineOS.
+# The installer window runs it through sudo (the live user needs no password).
+#   backend probe              JSON: firmware, network, disks and the systems on them, time zones, locales
+#   backend shrink-info PART   JSON: the smallest size PART can shrink to, with room to grow ("keep")
+#   backend install            reads the settings as one line of JSON on stdin (see install), prints
+#                              "step PCT TEXT" lines, then "done" or "error TEXT"
+# Everything commands print (pacstrap, mkfs…) goes to stderr: the installer's log.
+set -euo pipefail
+
+readonly MiB=$((1 << 20)) GiB=$((1 << 30))
+readonly min_root=$((20 * GiB))
+readonly repo=/usr/local/share/divineos/repo # the ISO's copy of [divine]
+readonly esp_type=c12a7328-f81f-11d2-ba4b-00a0c93ec93b bios_type=21686148-6449-6e6f-744e-656564454649 # "Hah!IdontNeedEFI"
+
+# --- pieces with no side effects (test.sh covers them) ---
+
+# /dev/sda 2 → /dev/sda2, /dev/nvme0n1 2 → /dev/nvme0n1p2
+part_path() { # disk number
+  if [[ $1 == *[0-9] ]]; then echo "$1p$2"; else echo "$1$2"; fi
+}
+
+# lsblk -J → the disks divineOS can go on: not the live medium (iso9660), zram, loop or read-only.
+disk_list() {
+  jq '[.blockdevices[] | select(.type == "disk" and (.ro | not) and (.path | test("^/dev/(zram|loop)") | not))
+      | select(any(.. | objects; .fstype? == "iso9660") | not)
+      | {path, size, model: ((.model // "") | sub("\\s+$"; "")), tran, pttype, free: 0, systems: [],
+         parts: [.children[]? | select(.type == "part")
+                 | {path, size, fstype, label, parttype, typename: .parttypename, n: .partn}]}]'
+}
+
+# The largest unpartitioned area in `sfdisk -F` output, aligned to 1 MiB: "START SECTORS".
+largest_free() { # sector-size < output
+  awk -v a=$((MiB / $1)) '$1 ~ /^[0-9]+$/ && $2 ~ /^[0-9]+$/ {
+      s = int(($1 + a - 1) / a) * a; n = int(($2 - s + 1) / a) * a
+      if (n > best) { best = n; start = s } }
+    END { if (best) print start, best }'
+}
+
+# Smallest filesystem sizes, in bytes: ntfsresize --info, and resize2fs -P (in blocks).
+ntfs_min() { sed -n 's/.*You might resize at \([0-9]*\) bytes.*/\1/p'; }
+ext_min() { # block-size < output
+  local blocks
+  blocks=$(sed -n 's/.*minimum size of the filesystem: *\([0-9]*\).*/\1/p')
+  echo $((${blocks:-0} * $1))
+}
+
+# What a shrunk partition keeps: its minimum plus 10% and 1 GiB to grow into, in whole MiB.
+keep() { # min-bytes
+  echo $((($1 + $1 / 10 + GiB + MiB - 1) / MiB * MiB))
+}
+
+# sfdisk script for a whole disk: ESP + root (UEFI), or BIOS boot + [/boot] + root (BIOS).
+erase_layout() { # uefi encrypt
+  echo 'label: gpt'
+  if [[ $1 == true ]]; then
+    echo 'size=1GiB, type=U'
+  else
+    echo "size=1MiB, type=$bios_type"
+    if [[ $2 == true ]]; then echo 'size=1GiB, type=L'; fi # GRUB can't read argon2 LUKS2
+  fi
+  echo 'type=L'
+}
+
+# Adds the hook that unlocks the encrypted root before "filesystems", and prints the kernel
+# parameter it reads: for a systemd-based initramfs, or a busybox-based one.
+crypt_hook() { # mkinitcpio.conf luks-uuid
+  if grep -Eq '^HOOKS=.*\bsystemd\b' "$1"; then
+    sed -Ei '/^HOOKS=/ s/\bfilesystems\b/sd-encrypt &/' "$1"
+    echo "rd.luks.name=$2=root"
+  else
+    sed -Ei '/^HOOKS=/ s/\bfilesystems\b/encrypt &/' "$1"
+    echo "cryptdevice=UUID=$2:root"
+  fi
+}
+
+# The keyboard layout in divineDE's hyprland.lua (the copy in the new user's home).
+set_kb() { # hyprland.lua layout options
+  sed -Ei "s/^(\s*)kb_layout\s*=\s*\"[^\"]*\",/\1kb_layout    = \"$2\",${3:+ kb_options = \"$3\",}/" "$1"
+}
+
+# Prints why a setting can't be used, if it can't. Values end up in config files and commands.
+invalid() { # name value
+  case $1 in
+  hostname) [[ $2 =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || echo "The computer name can only have letters, digits and dashes." ;;
+  user) [[ $2 =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || echo "The username must start with a lowercase letter and have only a-z, 0-9, - and _." ;;
+  fullname) [[ $2 != *[:,$'\n']* ]] || echo "Your name can't contain : or ,." ;;
+  password) [[ -n $2 && $2 != *$'\n'* ]] || echo "Choose a password." ;;
+  passphrase) [[ ${#2} -ge 8 && $2 != *$'\n'* ]] || echo "The encryption passphrase needs at least 8 characters." ;;
+  keymap) [[ $2 =~ ^[A-Za-z0-9_.-]+$ ]] || echo "Unknown keymap: $2" ;;
+  xkb) [[ $2 =~ ^[a-z]+(,[a-z]+)*$ ]] || echo "Unknown keyboard layout: $2" ;;
+  xkb_options) [[ $2 =~ ^[a-z0-9_:,]*$ ]] || echo "Unknown keyboard options: $2" ;;
+  timezone) [[ $2 =~ ^[A-Za-z0-9_+-]+(/[A-Za-z0-9_+-]+)*$ ]] || echo "Unknown time zone: $2" ;;
+  locale) [[ $2 =~ ^[A-Za-z0-9_.@-]+$ ]] || echo "Unknown language: $2" ;;
+  esac
+}
+
+# --- reading the machine ---
+
+# The first partition on a disk whose type matches a regex.
+find_part() { # disk type-regex
+  lsblk -lnpo PATH,PARTTYPE "$1" | awk -v t="$2" '$2 ~ t { print $1; exit }'
+}
+parent() { echo "/dev/$(lsblk -no PKNAME "$1")"; }
+bytes() { lsblk -bdno SIZE "$1"; }
+
+# The largest free area on a disk, "START SECTORS" (empty when there's none), and its bytes.
+free_area() { sfdisk -F "$1" 2>/dev/null | largest_free "$(blockdev --getss "$1")"; }
+free_bytes() { # disk
+  local area sectors
+  area=$(free_area "$1")
+  sectors=${area#* }
+  echo $((${sectors:-0} * $(blockdev --getss "$1")))
+}
+
+fs_min() { # partition
+  local out
+  case $(lsblk -no FSTYPE "$1") in
+  ntfs)
+    out=$(ntfsresize --info --no-progress-bar "$1" 2>&1) || {
+      echo "Windows didn't shut down fully, so its partition can't be resized. Start Windows, turn off Fast Startup, shut it down, and try again." >&2
+      return 1
+    }
+    ntfs_min <<< "$out"
+    ;;
+  ext2 | ext3 | ext4)
+    resize2fs -P "$1" 2>/dev/null | ext_min "$(dumpe2fs -h "$1" 2>/dev/null | sed -n 's/^Block size: *//p')"
+    ;;
+  *)
+    echo "Only Windows (NTFS) and ext4 partitions can be shrunk here. Use manual partitioning." >&2
+    return 1
+    ;;
+  esac
+}
+
+probe() {
+  local uefi=false online=false disks d tz locales name dev
+  [[ -d /sys/firmware/efi ]] && uefi=true
+  nm-online -qt 3 && online=true
+  disks=$(lsblk -J -b -o PATH,TYPE,SIZE,MODEL,TRAN,PTTYPE,FSTYPE,LABEL,PARTTYPE,PARTTYPENAME,PARTN,RO | disk_list)
+  for d in $(jq -r '.[].path' <<< "$disks"); do
+    disks=$(jq --arg d "$d" --argjson f "$(free_bytes "$d")" 'map(if .path == $d then .free = $f end)' <<< "$disks")
+  done
+  # other systems (os-prober: "/dev/sda1@/EFI/…/bootmgfw.efi:Windows Boot Manager:Windows:efi")
+  while IFS=: read -r dev name _; do
+    d=$(parent "${dev%%@*}")
+    disks=$(jq --arg d "$d" --arg s "$name" 'map(if .path == $d then .systems += [$s] end)' <<< "$disks")
+  done < <(os-prober 2>/dev/null)
+  tz=$(timedatectl list-timezones | jq -R . | jq -s .)
+  locales=$(sed -n 's/ UTF-8$//p' /usr/share/i18n/SUPPORTED | jq -R . | jq -s .)
+  jq -n --argjson uefi $uefi --argjson online $online --argjson disks "$disks" \
+    --argjson timezones "$tz" --argjson locales "$locales" '$ARGS.named'
+}
+
+shrink_info() { # partition
+  local min
+  min=$(fs_min "$1") || exit 1
+  jq -n --arg part "$1" --argjson keep "$(keep "$min")" '$ARGS.named'
+}
+
+# --- installing ---
+
+step() { printf 'step %s %s\n' "$1" "$2" >&3; }
+die() {
+  printf 'error %s\n' "$*" >&3
+  exit 1
+}
+
+cleanup() {
+  umount -R /mnt 2>/dev/null || true
+  if [[ -e /dev/mapper/root ]]; then cryptsetup close root || true; fi
+}
+
+# Refuses disks that hold the live system or anything mounted.
+usable() { # disk
+  [[ -b $1 && $(lsblk -dno TYPE "$1") == disk ]] || die "$1 is not a disk."
+  if lsblk -no FSTYPE "$1" | grep -qx iso9660; then die "$1 holds this live system."; fi
+  if lsblk -no MOUNTPOINTS "$1" | grep -q .; then die "$1 is in use: one of its partitions is mounted."; fi
+}
+
+# Adds a partition (an sfdisk line) at the end of the table and prints its device.
+add_part() { # disk line
+  local before
+  before=$(lsblk -lnpo NAME "$1" | sort)
+  sfdisk --append "$1" <<< "$2" >&2 || return 1
+  udevadm settle
+  comm -13 <(echo "$before") <(lsblk -lnpo NAME "$1" | sort)
+}
+
+# Marks a partition as Linux, so Windows doesn't offer to format it.
+linux_type() { # partition
+  sfdisk --part-type "$(parent "$1")" "$(lsblk -no PARTN "$1")" L
+}
+
+shrink() { # partition bytes
+  local part=$1 size=$2 fs min
+  fs=$(lsblk -no FSTYPE "$part")
+  min=$(fs_min "$part" 2>&1) || die "$min"
+  ((size >= $(keep "$min"))) || die "That leaves too little room on $part."
+  case $fs in
+  ntfs)
+    ntfsresize --no-action --no-progress-bar --size "$size" "$part" <<< y || die "Windows' partition can't be shrunk."
+    ntfsresize --no-progress-bar --size "$size" "$part" <<< y || die "Shrinking Windows' partition failed."
+    ;;
+  ext*)
+    e2fsck -fy "$part" || (($? < 4)) || die "$part has errors that e2fsck can't fix."
+    resize2fs "$part" "$((size / 1024))K" || die "Shrinking $part failed."
+    ;;
+  esac
+  sfdisk -N "$(lsblk -no PARTN "$part")" "$(parent "$part")" <<< ",$((size / MiB))MiB" || die "Shrinking $part failed."
+  udevadm settle
+}
+
+# Turns pacman's package lines into progress: downloads 15-45%, installs 45-85%.
+progress() {
+  local line total=0 got=0 put=0
+  while IFS= read -r line; do
+    printf '%s\n' "$line" >&2
+    if [[ $line =~ ^Packages\ \(([0-9]+)\) ]]; then
+      total=${BASH_REMATCH[1]}
+    elif ((total)) && [[ $line == *downloading* ]]; then
+      ((got < total)) && ((++got))
+      step $((15 + 30 * got / total)) "Downloading packages"
+    elif ((total)) && [[ $line =~ installing\ ([^ .]+) ]]; then
+      ((put < total)) && ((++put))
+      step $((45 + 40 * put / total)) "Installing ${BASH_REMATCH[1]}"
+    fi
+  done
+}
+
+# Settings: {"mode": "erase|replace|alongside|manual",
+#   "disk": erase/alongside, "part": replace, "shrink": {"part", "size"} or null (alongside),
+#   "root", "esp": manual, "encrypt": erase only, "passphrase",
+#   "hostname", "fullname", "user", "password", "timezone", "locale", "keymap", "xkb", "xkb_options"}
+install() {
+  local cfg
+  IFS= read -r cfg
+  exec 3>&1 1>&2 </dev/null # protocol on fd 3, everything else to the log
+  val() { jq -r "($1) // \"\" | tostring" <<< "$cfg"; }
+
+  local mode disk part encrypt passphrase hostname fullname user password timezone locale keymap xkb xkb_options
+  mode=$(val .mode) disk=$(val .disk) part=$(val .part) encrypt=$(val .encrypt)
+  passphrase=$(val .passphrase) hostname=$(val .hostname) fullname=$(val .fullname) user=$(val .user)
+  password=$(val .password) timezone=$(val .timezone) locale=$(val .locale) keymap=$(val .keymap)
+  xkb=$(val .xkb) xkb_options=$(val .xkb_options)
+  [[ $mode == erase ]] || encrypt=""
+
+  local k why
+  for k in hostname fullname user password timezone locale keymap xkb xkb_options ${encrypt:+passphrase}; do
+    why=$(invalid "$k" "${!k}")
+    [[ -z $why ]] || die "$why"
+  done
+  [[ -f /usr/share/zoneinfo/$timezone ]] || die "Unknown time zone: $timezone"
+  grep -qxF "$locale UTF-8" /usr/share/i18n/SUPPORTED || die "Unknown language: $locale"
+
+  exec 9> /run/divine-install.lock
+  flock -n 9 || die "Another install is already running."
+  local uefi=false
+  [[ -d /sys/firmware/efi ]] && uefi=true
+  trap cleanup EXIT
+  cleanup
+
+  # Fail before touching any disk when there's no internet.
+  step 2 "Connecting to the package mirrors"
+  local conf=/tmp/divine-install.conf
+  { cat /etc/pacman.conf; printf '\n[divine]\nSigLevel = Optional TrustAll\nServer = file://%s\n' "$repo"; } > "$conf"
+  pacman --config "$conf" -Sy --noconfirm archlinux-keyring ||
+    die "Can't reach the package mirrors. Connect to the internet (Wi-Fi is in the Control Center) and try again."
+
+  # 1. Partitions: root, plus the ESP (UEFI) and a separate /boot (BIOS + encryption).
+  step 5 "Preparing the disk"
+  local root esp="" boot="" new_esp=false espdir=/efi area start sectors ss
+  case $mode in
+  erase)
+    usable "$disk"
+    (($(bytes "$disk") >= min_root + GiB)) || die "$disk is smaller than 21 GiB."
+    wipefs -af "$disk"
+    erase_layout "$uefi" "$encrypt" | sfdisk "$disk" || die "Partitioning $disk failed."
+    udevadm settle
+    if [[ $uefi == true ]]; then
+      esp=$(part_path "$disk" 1) root=$(part_path "$disk" 2) new_esp=true espdir=/boot
+    elif [[ $encrypt == true ]]; then
+      boot=$(part_path "$disk" 2) root=$(part_path "$disk" 3)
+    else
+      root=$(part_path "$disk" 2)
+    fi
+    ;;
+  replace | manual)
+    root=$part
+    [[ $mode == manual ]] && root=$(val .root) esp=$(val .esp)
+    [[ -b $root && $(lsblk -dno TYPE "$root") == part ]] || die "Choose a partition for divineOS."
+    disk=$(parent "$root")
+    usable "$disk"
+    (($(bytes "$root") >= min_root)) || die "$root is smaller than 20 GiB."
+    [[ ! $(lsblk -dno PARTTYPE "$root") =~ ^($esp_type|$bios_type|0xef)$ ]] || die "$root is a boot partition."
+    if [[ $uefi == true ]]; then
+      [[ -n $esp ]] || esp=$(find_part "$disk" "^($esp_type|0xef)$")
+      [[ -n $esp ]] || die "$disk has no EFI system partition. Add one with manual partitioning."
+      [[ $esp != "$root" ]] || die "Choose different partitions for divineOS and EFI."
+      usable "$(parent "$esp")"
+      [[ -n $(lsblk -no FSTYPE "$esp") ]] || new_esp=true # made in GParted but not formatted
+    elif [[ $(lsblk -dno PTTYPE "$disk") == gpt && -z $(find_part "$disk" "^$bios_type$") ]]; then
+      die "$disk needs a 1 MiB \"BIOS boot\" partition (the bios_grub flag). Add one with manual partitioning."
+    fi
+    linux_type "$root"
+    ;;
+  alongside)
+    usable "$disk"
+    local shrink_part shrink_size need=$min_root
+    shrink_part=$(val .shrink.part) shrink_size=$(val .shrink.size)
+    [[ -z $shrink_part || $shrink_size =~ ^[0-9]+$ ]] || die "Choose how much space to give divineOS."
+    if [[ $uefi == true ]]; then
+      esp=$(find_part "$disk" "^($esp_type|0xef)$")
+      [[ -n $esp ]] || need=$((need + 512 * MiB))
+    fi
+    if [[ -n $shrink_part ]]; then
+      [[ $(parent "$shrink_part") == "$disk" ]] || die "$shrink_part isn't on $disk."
+      (($(bytes "$shrink_part") - shrink_size >= need)) || die "Give divineOS at least 20 GiB."
+      step 6 "Shrinking $shrink_part"
+      shrink "$shrink_part" "$shrink_size"
+    fi
+    ss=$(blockdev --getss "$disk")
+    area=$(free_area "$disk")
+    [[ -n $area ]] || die "There's no free space on $disk."
+    start=${area% *} sectors=${area#* }
+    ((sectors * ss >= need)) || die "$disk needs at least 20 GiB of free space."
+    if [[ $uefi == true && -z $esp ]]; then
+      esp=$(add_part "$disk" "start=$start, size=$((512 * MiB / ss)), type=U") || die "Adding an EFI partition failed."
+      new_esp=true start=$((start + 512 * MiB / ss)) sectors=$((sectors - 512 * MiB / ss))
+    elif [[ $uefi == false && $(lsblk -dno PTTYPE "$disk") == gpt && -z $(find_part "$disk" "^$bios_type$") ]]; then
+      add_part "$disk" "start=$start, size=$((MiB / ss)), type=$bios_type" > /dev/null || die "Adding a BIOS boot partition failed."
+      start=$((start + MiB / ss)) sectors=$((sectors - MiB / ss))
+    fi
+    root=$(add_part "$disk" "start=$start, size=$sectors, type=L") || die "Adding the divineOS partition failed."
+    [[ -n $root ]] || die "Adding the divineOS partition failed."
+    ;;
+  *) die "Choose how to install." ;;
+  esac
+
+  # 2. Filesystems
+  step 10 "Formatting"
+  local rootdev=$root
+  if [[ $encrypt == true ]]; then
+    printf '%s' "$passphrase" | cryptsetup luksFormat --type luks2 --batch-mode --key-file=- "$root"
+    printf '%s' "$passphrase" | cryptsetup open --key-file=- "$root" root
+    rootdev=/dev/mapper/root
+  fi
+  wipefs -aq "$rootdev"
+  mkfs.ext4 -Fq -L divineOS "$rootdev"
+  mount "$rootdev" /mnt
+  if [[ -n $boot ]]; then
+    mkfs.ext4 -Fq -L boot "$boot"
+    mount --mkdir "$boot" /mnt/boot
+  fi
+  if [[ -n $esp ]]; then
+    if [[ $new_esp == true ]]; then mkfs.fat -F 32 -n EFI "$esp"; fi
+    mount --mkdir "$esp" "/mnt$espdir"
+  fi
+
+  # 3. Packages: Arch from the mirrors, divineOS's own from the ISO
+  step 15 "Downloading packages"
+  local pkgs=(base linux linux-firmware divineos-base grub os-prober) vendor
+  [[ $uefi == true ]] && pkgs+=(efibootmgr)
+  [[ $encrypt == true ]] && pkgs+=(cryptsetup)
+  vendor=$(grep -m1 -o 'GenuineIntel\|AuthenticAMD' /proc/cpuinfo || true)
+  case $vendor in GenuineIntel) pkgs+=(intel-ucode) ;; AuthenticAMD) pkgs+=(amd-ucode) ;; esac
+  pacstrap -C "$conf" -K /mnt "${pkgs[@]}" 2>&1 | progress ||
+    die "Installing the packages failed. Check the internet connection and try again."
+
+  # 4. System settings
+  step 86 "Setting up $hostname"
+  genfstab -U /mnt >> /mnt/etc/fstab
+  echo "$hostname" > /mnt/etc/hostname
+  printf '127.0.0.1 localhost\n::1 localhost\n127.0.1.1 %s.localdomain %s\n' "$hostname" "$hostname" >> /mnt/etc/hosts
+  ln -sf "/usr/share/zoneinfo/$timezone" /mnt/etc/localtime
+  arch-chroot /mnt hwclock --systohc || true
+  echo "$locale UTF-8" >> /mnt/etc/locale.gen
+  arch-chroot /mnt locale-gen
+  echo "LANG=$locale" > /mnt/etc/locale.conf
+  echo "KEYMAP=$keymap" > /mnt/etc/vconsole.conf
+  printf 'XKB_DEFAULT_LAYOUT=%s\nXKB_DEFAULT_OPTIONS=%s\n' "$xkb" "$xkb_options" >> /mnt/etc/environment # login screen
+
+  step 88 "Creating $user"
+  arch-chroot /mnt useradd -m -G wheel -c "$fullname" "$user" || die "The username $user is taken. Choose another."
+  printf '%s:%s\n' "$user" "$password" | arch-chroot /mnt chpasswd
+  echo '%wheel ALL=(ALL:ALL) ALL' > /mnt/etc/sudoers.d/10-wheel
+  chmod 440 /mnt/etc/sudoers.d/10-wheel
+  arch-chroot /mnt passwd -l root
+  set_kb "/mnt/home/$user/.config/hypr/hyprland.lua" "$xkb" "$xkb_options"
+
+  if [[ $encrypt == true ]]; then
+    local param
+    param=$(crypt_hook /mnt/etc/mkinitcpio.conf "$(blkid -s UUID -o value "$root")")
+    sed -i "s|^GRUB_CMDLINE_LINUX=\"|&$param |" /mnt/etc/default/grub
+  fi
+
+  # 5. Boot loader
+  step 90 "Installing the boot loader"
+  if [[ $uefi == false ]]; then
+    arch-chroot /mnt grub-install --target=i386-pc "$disk" || die "Installing GRUB failed."
+  elif [[ $mode == erase ]]; then
+    # The fallback path boots even where the firmware forgets its boot entries.
+    arch-chroot /mnt grub-install --target=x86_64-efi --efi-directory="$espdir" --removable || die "Installing GRUB failed."
+    arch-chroot /mnt grub-install --target=x86_64-efi --efi-directory="$espdir" --bootloader-id=divineOS || true
+  else
+    arch-chroot /mnt grub-install --target=x86_64-efi --efi-directory="$espdir" --bootloader-id=divineOS || die "Installing GRUB failed."
+  fi
+  step 94 "Finishing"
+  arch-chroot /mnt /usr/lib/divineos/post-install || die "Finishing the install failed."
+  arch-chroot /mnt grub-mkconfig -o /boot/grub/grub.cfg || die "Writing the boot menu failed."
+
+  step 100 "Done"
+  echo 'done' >&3
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  case ${1:-} in
+  probe) probe ;;
+  shrink-info) shrink_info "$2" ;;
+  install) install ;;
+  *) echo "usage: backend probe | shrink-info PART | install" >&2; exit 2 ;;
+  esac
+fi

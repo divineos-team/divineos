@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Install divineOS
+GenericName=System Installer
+Comment=Install divineOS to this computer's disk
+Exec=divine-install
+Icon=divine-install
+Categories=System;
+Keywords=installer;setup;disk;partition;

@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# greetd's greeter on divineOS: divine-shell's login screen (greeter.qml) in the cage kiosk.
+# If it can't start (a GPU or QML problem), fall back to tuigreet so you can still log in.
+export XCURSOR_THEME=divineOS XCURSOR_SIZE=24
+# cage fills the screen with the window, but Qt would still draw its own title bar and frame.
+export QT_WAYLAND_DISABLE_WINDOWDECORATION=1
+# cage draws the pointer on the GPU's cursor plane, which VMs (vmwgfx, virtio) often don't show.
+# A login screen loses nothing by drawing it in software.
+export WLR_NO_HARDWARE_CURSORS=1
+
+# VMware: the compositor can't import GPU buffers from VMware's vmwgfx driver and drops GPU-
+# rendered clients (see hyprland.lua), so the login screen renders on the CPU there.
+sw=()
+[[ $(cat /sys/class/dmi/id/sys_vendor 2>/dev/null) == "VMware, Inc." ]] && sw=(env LIBGL_ALWAYS_SOFTWARE=1)
+
+cage -s -m last -- "${sw[@]}" qs -p /usr/share/divine-shell/greeter.qml && exit
+exec tuigreet --time --remember --asterisks --greeting 'divineOS' --cmd start-hyprland

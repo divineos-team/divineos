@@ -1,0 +1,5 @@
+#!/bin/sh
+# devenv: the divineOS terminal IDE. Its own Neovim app name keeps plugins, state and
+# settings (~/.config/devenv, ~/.local/share/devenv) apart from any personal Neovim.
+export NVIM_APPNAME=devenv
+exec nvim -u /usr/share/devenv/init.lua "$@"

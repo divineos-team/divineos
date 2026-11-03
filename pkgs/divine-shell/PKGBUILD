@@ -1,0 +1,38 @@
+# Maintainer: devine
+pkgname=divine-shell
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='divineDE shell: menu bar, dock, Control Center, launcher, app switcher, overview, notifications, capture bar, Welcome guide, lock and login screens in liquid glass (Quickshell)'
+arch=(any)
+license=(GPL-3.0-or-later)
+depends=(
+  quickshell hyprland
+  # lock screen: PAM via Quickshell, idle and before-sleep locking via hypridle
+  pam hypridle
+  # login screen: greetd runs divine-greeter (cage kiosk), tuigreet if that fails
+  cage greetd-tuigreet
+  # services the Control Center drives
+  networkmanager bluez bluez-utils upower power-profiles-daemon
+  pipewire wireplumber brightnessctl
+  # screenshots and screen recording (capture bar)
+  grim slurp wl-clipboard wf-recorder libnotify
+  # launcher: clipboard history (hyprland.lua runs wl-paste --watch cliphist store), file search
+  cliphist fd glib2
+  # Settings > Account: the picture reaches the login screen through AccountsService
+  accountsservice
+  # type and glyphs
+  inter-font ttf-nerd-fonts-symbols
+)
+backup=(etc/pam.d/divine-lock)
+
+package() {
+  install -d "$pkgdir/usr/share/divine-shell"
+  # no-preserve: sources may come from a Windows bind mount where every file is 0777
+  cp -r --no-preserve=mode,ownership "$startdir/shell/." "$pkgdir/usr/share/divine-shell/"
+  install -Dm644 "$startdir/divine-lock.pam" "$pkgdir/etc/pam.d/divine-lock"
+  install -Dm755 "$startdir/divine-greeter" -t "$pkgdir/usr/bin/"
+  install -Dm644 "$startdir/divine-greeter.tmpfiles" "$pkgdir/usr/lib/tmpfiles.d/divine-greeter.conf"
+  install -Dm755 "$startdir/divine-welcome" -t "$pkgdir/usr/bin/"
+  install -Dm644 "$startdir/divine-welcome.desktop" -t "$pkgdir/usr/share/applications/"
+  install -Dm644 "$startdir/divine-welcome.svg" -t "$pkgdir/usr/share/icons/hicolor/scalable/apps/"
+}

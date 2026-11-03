@@ -1,0 +1,26 @@
+# Maintainer: devine
+# NVIDIA stats come from libnvidia-ml, loaded at runtime when the driver is installed.
+pkgname=devine-monitor
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='divineOS system monitor: CPU, memory, GPU, temperatures, network and processes (TUI + glass window)'
+arch=(x86_64)
+license=(GPL-3.0-or-later)
+depends=(gcc-libs glibc)
+makedepends=(rust)
+
+build() {
+  cd "$startdir"
+  CARGO_TARGET_DIR="$srcdir/target" cargo build --release --locked
+}
+
+check() {
+  cd "$startdir"
+  CARGO_TARGET_DIR="$srcdir/target" cargo test --release --locked
+}
+
+package() {
+  install -Dm755 "$srcdir/target/release/devine-monitor" -t "$pkgdir/usr/bin/"
+  install -Dm644 "$startdir/devine-monitor.desktop" -t "$pkgdir/usr/share/applications/"
+  install -Dm644 "$startdir/devine-monitor.svg" -t "$pkgdir/usr/share/icons/hicolor/scalable/apps/"
+}

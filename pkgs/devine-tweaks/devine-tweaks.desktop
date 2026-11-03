@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Settings
+GenericName=System Settings
+Comment=Appearance, displays, sound and performance
+Exec=devine-tweaks
+Icon=devine-tweaks
+Categories=Settings;System;
+Keywords=tweaks;preferences;display;scale;resolution;sound;audio;profile;theme;dark;glass;kernel;sysctl;swappiness;

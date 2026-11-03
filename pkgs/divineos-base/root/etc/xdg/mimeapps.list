@@ -1,0 +1,3 @@
+# divineOS defaults; per-user choices in ~/.config/mimeapps.list win.
+[Default Applications]
+inode/directory=devine-files.desktop

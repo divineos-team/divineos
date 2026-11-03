@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Welcome
+GenericName=Getting Started
+Comment=A tour of divineOS: the desktop, shortcuts and apps
+Exec=divine-welcome
+Icon=divine-welcome
+Categories=System;Documentation;
+Keywords=guide;help;tour;shortcuts;keys;getting started;intro;

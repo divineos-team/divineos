@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 32 32">
+  <!-- Pointing hand: the same shapes twice, stroked white underneath and filled on top, so
+       only the outer outline shows. -->
+  <defs>
+    <filter id="s" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="0.8"/>
+      <feOffset dy="0.8"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.4"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <g id="h">
+      <rect x="11" y="3.5" width="4.6" height="15" rx="2.3"/>
+      <rect x="15.2" y="11" width="4" height="9" rx="2"/>
+      <rect x="18.8" y="12.2" width="3.8" height="8" rx="1.9"/>
+      <rect x="22.2" y="13.6" width="3.4" height="7" rx="1.7"/>
+      <rect x="4.6" y="14.6" width="4.2" height="8.6" rx="2.1" transform="rotate(-38 6.7 18.9)"/>
+      <path d="M8.6 15.5h17v6.6c0 3.6-2.9 6.4-6.4 6.4h-4c-3.5 0-5.9-2-7.3-4.8L7 19.5z"/>
+    </g>
+  </defs>
+  <g filter="url(#s)">
+    <use xlink:href="#h" fill="#fff" stroke="#fff" stroke-width="3.2" stroke-linejoin="round"/>
+    <use xlink:href="#h" fill="#0E1220"/>
+    <path d="M15.4 15.5v4M19 16.4v3.4M22.4 17.6v2.6" stroke="#3A4256" stroke-width=".7" stroke-linecap="round"/>
+  </g>
+</svg>

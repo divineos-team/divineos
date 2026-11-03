@@ -1,0 +1,39 @@
+# Builds the [divine] package repo, signs it and publishes it as the "repo" release's assets:
+# the hosted repo installed divineOS systems update from. Needs the DIVINE_SIGNING_KEY
+# secret (README, "Package updates").
+name: repo
+
+on:
+  push:
+    branches: [main]
+    paths: ['pkgs/**', 'branding/**', build.sh]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency: repo
+
+jobs:
+  repo:
+    runs-on: ubuntu-latest
+    container: archlinux:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: bash build.sh repo
+        env:
+          DIVINE_REPO_URL: https://github.com/${{ github.repository }}/releases/download/repo
+          DIVINE_SIGNING_KEY: ${{ secrets.DIVINE_SIGNING_KEY }}
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        # ponytail: replaced package versions stay behind as unused assets (pacman only fetches
+        # what divine.db lists); prune them once the release gets crowded.
+        run: |
+          pacman -S --needed --noconfirm github-cli
+          gh release view repo > /dev/null 2>&1 ||
+            gh release create repo --latest=false --title "divineOS package repo" \
+              --notes "pacman repo for divineOS's own packages, rebuilt from main."
+          gh release upload repo out/repo/* --clobber

@@ -1,0 +1,33 @@
+# Maintainer: devine
+pkgname=devenv
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='divineOS terminal IDE: a Neovim distribution with file tree, fuzzy finder, Git, LSP and DAP'
+arch=(any)
+license=(GPL-3.0-or-later)
+depends=(
+  neovim git ripgrep fd lazygit wl-clipboard
+  # treesitter parsers are compiled on demand
+  tree-sitter-cli gcc
+  # Mason fetches language servers and debuggers with these
+  curl unzip tar gzip nodejs npm python
+)
+makedepends=(neovim git)
+
+build() {
+  # Fetch every plugin at its locked commit so the first launch works offline.
+  local home="$srcdir/home"
+  XDG_CONFIG_HOME="$home/config" XDG_DATA_HOME="$home/data" XDG_STATE_HOME="$home/state" XDG_CACHE_HOME="$home/cache" \
+    NVIM_APPNAME=devenv nvim --headless -u "$startdir/config/init.lua" "+Lazy! restore" +qa
+  test -d "$home/data/devenv/lazy/snacks.nvim" # fail loudly if the fetch didn't happen
+}
+
+package() {
+  install -d "$pkgdir/usr/share/devenv"
+  # no-preserve: sources may come from a Windows bind mount where every file is 0777
+  cp -r --no-preserve=mode,ownership "$startdir/config/." "$pkgdir/usr/share/devenv/"
+  cp -r --no-preserve=ownership "$srcdir/home/data/devenv/lazy" "$pkgdir/usr/share/devenv/plugins"
+  install -Dm755 "$startdir/devenv" -t "$pkgdir/usr/bin/"
+  install -Dm644 "$startdir/devenv.desktop" -t "$pkgdir/usr/share/applications/"
+  install -Dm644 "$startdir/devenv.svg" -t "$pkgdir/usr/share/icons/hicolor/scalable/apps/"
+}

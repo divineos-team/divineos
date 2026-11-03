@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=devenv
+GenericName=Code Editor
+Comment=Terminal IDE: file tree, fuzzy finder, Git, language servers and debugger
+Exec=kitty --class devenv -e devenv %F
+Icon=devenv
+Categories=Development;IDE;TextEditor;
+Keywords=code;editor;ide;vscode;neovim;vim;
+MimeType=text/plain;text/x-c;text/x-c++;text/x-python;text/x-rust;text/x-go;text/x-shellscript;application/json;

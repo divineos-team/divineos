@@ -1,0 +1,16 @@
+# Maintainer: devine
+pkgname=divine-pkg
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='One package command for the Arch repos, the AUR (paru) and Debian (Distrobox)'
+arch=(any)
+license=(GPL-3.0-or-later)
+depends=(bash coreutils grep pacman sudo curl paru distrobox podman)
+
+check() {
+  bash "$startdir/test.sh"
+}
+
+package() {
+  install -Dm755 "$startdir/divine-pkg" -t "$pkgdir/usr/bin/"
+}

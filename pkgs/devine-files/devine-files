@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Opens a devine-files window at a folder (default: home); a file opens its folder.
+# Reuses the running instance when there is one.
+dir=$(realpath -- "${1:-$HOME}") || exit 1
+[[ -d $dir ]] || dir=$(dirname -- "$dir")
+qs -p /usr/share/devine-files ipc call files open "$dir" >/dev/null 2>&1 ||
+	DEVINE_FILES_DIR=$dir exec qs -p /usr/share/devine-files

@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# File operations for devine-files. Never overwrites: a name that's taken gets " 2", " 3"…
+# like Finder. Errors go to stderr, one line each; the exit code is 1 if anything failed.
+#   devine-files-op copy    DEST SRC...
+#   devine-files-op move    DEST SRC...
+#   devine-files-op extract DEST ARCHIVE...   each into its own folder, via bsdtar (libarchive)
+#   devine-files-op trash   SRC...
+#   devine-files-op mkdir   DIR               prints the new folder's path
+#   devine-files-op rename  PATH NEWNAME
+set -uo pipefail
+
+status=0
+fail() {
+	printf 'devine-files: %s\n' "$*" >&2
+	status=1
+}
+
+# free <dir> <name>: <dir>/<name>, or the first of "<stem> 2<ext>", "<stem> 3<ext>"… not taken.
+free() {
+	local dir=$1 name=$2 stem ext i=2
+	[[ -e $dir/$name || -L $dir/$name ]] || { printf '%s/%s' "$dir" "$name"; return; }
+	if [[ $name =~ ^(.+)(\.tar\.[^.]+)$ || $name =~ ^(.+)(\.[^./]+)$ ]]; then
+		stem=${BASH_REMATCH[1]} ext=${BASH_REMATCH[2]}
+	else
+		stem=$name ext=
+	fi
+	while [[ -e "$dir/$stem $i$ext" || -L "$dir/$stem $i$ext" ]]; do ((i++)); done
+	printf '%s/%s %s%s' "$dir" "$stem" "$i" "$ext"
+}
+
+# Archive name without its archive extension: photos.tar.gz → photos
+stem() {
+	local n=${1##*/}
+	shopt -s nocasematch
+	[[ $n =~ ^(.+)\.(tar\.[a-z0-9]+|t[gbx]z|tzst|zip|7z|rar|tar|iso|cpio|xpi|jar|apk|deb|rpm)$ ]] && n=${BASH_REMATCH[1]}
+	shopt -u nocasematch
+	printf '%s' "$n"
+}
+
+need_dir() {
+	[[ -d $1 ]] || { fail "not a folder: $1"; exit 1; }
+}
+
+cmd=${1:-}
+shift || true
+case $cmd in
+copy | move)
+	dest=$1
+	shift
+	need_dir "$dest"
+	for src in "$@"; do
+		src=${src%/}
+		[[ -e $src || -L $src ]] || { fail "no longer exists: $src"; continue; }
+		if [[ $cmd == move && $(cd "${src%/*}" && pwd -P) == $(cd "$dest" && pwd -P) ]]; then
+			continue # already here
+		fi
+		target=$(free "$dest" "${src##*/}")
+		if [[ $cmd == copy ]]; then
+			cp -a -- "$src" "$target" || fail "couldn't copy ${src##*/}"
+		else
+			mv -n -- "$src" "$target" || fail "couldn't move ${src##*/}"
+		fi
+	done
+	;;
+extract)
+	dest=$1
+	shift
+	need_dir "$dest"
+	for archive in "$@"; do
+		target=$(free "$dest" "$(stem "$archive")")
+		mkdir -- "$target" || { fail "couldn't create ${target##*/}"; continue; }
+		if ! bsdtar -xf "$archive" -C "$target"; then
+			fail "couldn't extract ${archive##*/}"
+			rm -rf -- "$target" # only ever the folder created just above
+		fi
+	done
+	;;
+trash)
+	(($#)) && { gio trash -- "$@" || fail "couldn't move to Trash"; }
+	;;
+mkdir)
+	need_dir "$1"
+	target=$(free "$1" "New Folder")
+	if mkdir -- "$target"; then printf '%s\n' "$target"; else fail "couldn't create a folder in $1"; fi
+	;;
+rename)
+	path=${1%/} name=${2:-}
+	if [[ -z $name || $name == . || $name == .. || $name == */* ]]; then
+		fail "not a valid name: $name"
+	elif [[ $name != "${path##*/}" ]]; then
+		target=${path%/*}/$name
+		if [[ -e $target || -L $target ]]; then
+			fail "$name already exists"
+		else
+			mv -n -T -- "$path" "$target" || fail "couldn't rename ${path##*/}"
+		fi
+	fi
+	;;
+*)
+	fail "usage: devine-files-op copy|move|extract|trash|mkdir|rename …"
+	;;
+esac
+exit $status

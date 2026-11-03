@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <title>divineOS</title>
+  <!-- Geometric "d": a precision ring + a blade-cut stem, sheared 12° forward for speed. -->
+  <defs>
+    <linearGradient id="g" gradientUnits="userSpaceOnUse" x1="96" y1="444" x2="380" y2="68">
+      <stop offset="0" stop-color="#5E5CE6"/>
+      <stop offset="0.55" stop-color="#0A84FF"/>
+      <stop offset="1" stop-color="#64D2FF"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(24 256) skewX(-12) translate(0 -256)">
+    <circle cx="220" cy="300" r="120" fill="none" stroke="url(#g)" stroke-width="48"/>
+    <path d="M316 444V112l48-44v376z" fill="url(#g)"/>
+  </g>
+</svg>

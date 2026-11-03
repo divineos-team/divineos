@@ -1,0 +1,12 @@
+# The filesystem package owns /usr/lib/os-release; re-brand it after every install/upgrade.
+[Trigger]
+Type = Package
+Operation = Install
+Operation = Upgrade
+Target = filesystem
+Target = divineos-base
+
+[Action]
+Description = Applying divineOS branding to os-release...
+When = PostTransaction
+Exec = /usr/bin/install -m644 /usr/share/divineos/os-release /usr/lib/os-release

@@ -1,0 +1,24 @@
+# Maintainer: devine
+# Toolchains (rust, cmake, meson, go, npm) aren't dependencies: RepoStation installs the
+# ones a project needs at install time.
+pkgname=repostation
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='divineOS app store for GitHub: search, build from source with native CPU flags, install, update'
+arch=(x86_64)
+license=(GPL-3.0-or-later)
+depends=(git gcc-libs glibc pacman sudo)
+makedepends=(rust)
+# makepkg's LTO turns ring's C code (TLS) into GCC bytecode that Rust's linker can't read.
+options=(!lto)
+
+build() {
+  cd "$startdir"
+  CARGO_TARGET_DIR="$srcdir/target" cargo build --release --locked
+}
+
+package() {
+  install -Dm755 "$srcdir/target/release/repostation" -t "$pkgdir/usr/bin/"
+  install -Dm644 "$startdir/repostation.desktop" -t "$pkgdir/usr/share/applications/"
+  install -Dm644 "$startdir/repostation.svg" -t "$pkgdir/usr/share/icons/hicolor/scalable/apps/"
+}

@@ -1,0 +1,29 @@
+# Maintainer: devine
+# A separate Quickshell instance (app id "devine-files"), so a busy folder never stalls the
+# desktop shell. File operations go through devine-files-op; archives through bsdtar.
+pkgname=devine-files
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='divineOS dual-pane file manager in liquid glass'
+arch=(any)
+license=(GPL-3.0-or-later)
+depends=(
+  bash coreutils quickshell qt6-declarative qt6-svg qt6-imageformats
+  glib2 gsettings-desktop-schemas # gio open/trash, the light/dark setting
+  libarchive git kitty
+  inter-font ttf-nerd-fonts-symbols
+)
+
+check() {
+  bash "$startdir/test.sh"
+}
+
+package() {
+  install -d "$pkgdir/usr/share/devine-files"
+  # no-preserve: sources may come from a Windows bind mount where every file is 0777
+  cp -r --no-preserve=mode,ownership "$startdir/app/." "$pkgdir/usr/share/devine-files/"
+  install -Dm755 "$startdir/devine-files-op" -t "$pkgdir/usr/lib/devine-files/"
+  install -Dm755 "$startdir/devine-files" -t "$pkgdir/usr/bin/"
+  install -Dm644 "$startdir/devine-files.desktop" -t "$pkgdir/usr/share/applications/"
+  install -Dm644 "$startdir/devine-files.svg" -t "$pkgdir/usr/share/icons/hicolor/scalable/apps/"
+}

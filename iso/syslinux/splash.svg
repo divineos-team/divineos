@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" width="640" height="480">
+  <!-- The BIOS menu's backdrop: the GRUB theme's dimmed wallpaper and a glass panel sized to
+       archiso_head.cfg's rows (entries in rows 15-19, x 168-472). build.sh renders it next to
+       the GRUB theme's background.png and logo.png. -->
+  <defs>
+    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".14"/>
+      <stop offset=".5" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <image href="background.png" width="640" height="480" preserveAspectRatio="xMidYMid slice"/>
+  <rect x="136.5" y="88.5" width="367" height="239" rx="16" fill="#171C30" fill-opacity=".55"/>
+  <rect x="136.5" y="88.5" width="367" height="239" rx="16" fill="url(#gloss)" stroke="#fff" stroke-opacity=".28"/>
+  <image href="logo.png" x="296" y="112" width="48" height="48"/>
+  <text x="320" y="198" text-anchor="middle" font-family="Inter" font-size="24" fill="#fff">divineOS</text>
+  <text x="320" y="388" xml:space="preserve" text-anchor="middle" font-family="Inter" font-size="12" fill="#A9B4CC">↑ ↓ choose  ·  Enter start  ·  Tab edit</text>
+</svg>

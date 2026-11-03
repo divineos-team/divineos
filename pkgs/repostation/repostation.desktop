@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=RepoStation
+GenericName=App Store
+Comment=Find, build and install apps from GitHub
+Exec=kitty --class repostation -e repostation
+Icon=repostation
+Categories=System;PackageManager;
+Keywords=store;github;install;apps;build;

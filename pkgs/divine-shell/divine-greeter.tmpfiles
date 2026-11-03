@@ -1,0 +1,2 @@
+# Where the login screen remembers the last account to log in.
+d /var/cache/divine-greeter 0755 greeter greeter -

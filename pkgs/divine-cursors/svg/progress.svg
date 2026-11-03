@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- {ROT} turns the spinner arc; make-cursors.sh fills it in once per frame. -->
+  <defs>
+    <filter id="s" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="0.8"/>
+      <feOffset dy="0.8"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.4"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <g filter="url(#s)">
+    <path d="M6 4v20l5-4.5 3.5 7.5 3.3-1.4-3.4-7.4H21z" fill="#0E1220" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/>
+    <circle cx="24" cy="24" r="4.6" fill="none" stroke="#fff" stroke-width="4.2"/>
+    <circle cx="24" cy="24" r="4.6" fill="none" stroke="#0E1220" stroke-width="2.2"/>
+    <circle cx="24" cy="24" r="4.6" fill="none" stroke="#0A84FF" stroke-width="2.2" stroke-linecap="round" stroke-dasharray="8 21" transform="rotate({ROT} 24 24)"/>
+  </g>
+</svg>

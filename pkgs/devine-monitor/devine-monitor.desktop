@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=System Monitor
+GenericName=Activity Monitor
+Comment=CPU, memory, GPU, temperatures, network and processes
+Exec=devine-monitor --gui
+Icon=devine-monitor
+Categories=System;Monitor;
+Keywords=task;manager;processes;cpu;gpu;memory;activity;top;
+Actions=terminal;
+
+[Desktop Action terminal]
+Name=Open in Terminal
+Exec=kitty --class devine-monitor -e devine-monitor

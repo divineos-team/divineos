@@ -1,0 +1,3 @@
+# GTK apps take their cursor theme from GSettings rather than XCURSOR_THEME.
+[org.gnome.desktop.interface]
+cursor-theme='divineOS'

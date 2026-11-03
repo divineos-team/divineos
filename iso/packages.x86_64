@@ -1,0 +1,3 @@
+# Appended to archiso's releng package list by build.sh.
+divineos-base
+divine-installer

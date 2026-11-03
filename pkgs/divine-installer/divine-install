@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Opens the divineOS installer. Its disk work runs as root in /usr/lib/divine-installer/backend.
+exec qs -p /usr/share/divine-installer "$@"

@@ -1,0 +1,8 @@
+[terminal]
+vt = 1
+
+# divine-shell's login screen; falls back to tuigreet. Comments go on their own line: greetd's
+# parser isn't full TOML and reads a comment after a value as part of it.
+[default_session]
+command = "divine-greeter"
+user = "greeter"

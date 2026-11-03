@@ -1,0 +1,3 @@
+#!/bin/sh
+# divine-welcome: open the Welcome guide, a divine-shell window.
+exec qs -p /usr/share/divine-shell ipc call welcome toggle

@@ -1,0 +1,3 @@
+#!/bin/sh
+# devine-tweaks: open divineOS Settings, a divine-shell window (Super+comma does the same).
+exec qs -p /usr/share/divine-shell ipc call tweaks toggle

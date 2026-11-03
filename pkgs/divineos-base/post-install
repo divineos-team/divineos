@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# Finishes a divineOS install, or turns an existing Arch install into divineOS. divine-install
+# runs it inside the new system (arch-chroot) once every package is in:
+#  - [divine] in pacman.conf: the hosted repo (if this build has one) instead of the ISO's copy
+#  - users made before divineos-base arrived get divineDE's /etc/skel files
+#  - Plymouth: "quiet splash" on the kernel command line and the initramfs hook
+#  - divineos-base's tuned zram config instead of any other
+#  - GRUB: the divineOS theme, the name divineOS, and other systems in the menu
+set -euo pipefail
+shopt -s nullglob
+
+# Drops every [divine] section, then adds the hosted repo when the mirrorlist exists.
+pacman_conf() { # conf mirrorlist
+  local kept
+  kept=$(awk '/^\[/ { skip = ($0 == "[divine]") } !skip' "$1")
+  printf '%s\n' "$kept" > "$1"
+  if [[ -s $2 ]]; then
+    printf '\n[divine]\nSigLevel = Required\nInclude = %s\n' "$2" >> "$1"
+  fi
+}
+
+# Adds "quiet" and "splash" to the lines matching a regex, each only if it's missing.
+# Handles bare lines (options …) and quoted values (GRUB_CMDLINE_LINUX_DEFAULT="…"). A missing
+# file is skipped: main tries every boot loader's.
+add_words() { # file line-regex
+  local word
+  [[ -f $1 ]] || return 0
+  for word in quiet splash; do
+    sed -Ei "/$2/ { /(^|[ \"=:])$word( |\"|\$)/! s/(\"?)\$/ $word\\1/ }" "$1"
+  done
+}
+
+# Puts plymouth right after udev or systemd in HOOKS, unless it's there already.
+add_hook() { # mkinitcpio.conf
+  grep -Eq '^HOOKS=.*\bplymouth\b' "$1" && return
+  sed -Ei '/^HOOKS=/ s/\b(udev|systemd)\b/& plymouth/' "$1"
+}
+
+# Sets KEY=value in a shell-style config (/etc/default/grub): replaces the first KEY= line,
+# commented out or not, or appends one.
+set_var() { # file key value
+  if grep -Eq "^#?\s*$2=" "$1"; then
+    sed -Ei "0,/^#?\s*$2=/ s|^#?\s*$2=.*|$2=$3|" "$1"
+  else
+    printf '%s=%s
+' "$2" "$3" >> "$1"
+  fi
+}
+
+# Copies /etc/skel into the homes of regular users, keeping anything already there.
+copy_skel() { # skel passwd
+  local user uid home
+  while IFS=: read -r user _ uid _ _ home _; do
+    if (( uid >= 1000 && uid < 60000 )) && [[ -d $home ]]; then
+      cp -rn "$1/." "$home/"
+      chown -R "$user:" "$home"
+    fi
+  done < "$2"
+}
+
+main() {
+  pacman_conf /etc/pacman.conf /etc/pacman.d/divine-mirrorlist
+  if [[ -f /usr/share/pacman/keyrings/divineos.gpg ]]; then
+    [[ -d /etc/pacman.d/gnupg ]] || pacman-key --init
+    pacman-key --populate divineos
+  fi
+
+  copy_skel /etc/skel /etc/passwd
+  rm -f /etc/systemd/zram-generator.conf # /usr/lib/systemd/zram-generator.conf is divineOS's
+
+  local f
+  for f in /boot/loader/entries/*.conf /efi/loader/entries/*.conf /boot/efi/loader/entries/*.conf; do
+    add_words "$f" '^options ' # systemd-boot
+  done
+  for f in /boot/limine.conf /boot/limine/limine.conf /efi/limine.conf; do
+    add_words "$f" '^\s*(kernel_)?cmdline:'
+  done
+  [[ -f /etc/kernel/cmdline ]] && add_words /etc/kernel/cmdline '^.' # unified kernel images
+  if [[ -f /etc/default/grub ]]; then
+    add_words /etc/default/grub '^GRUB_CMDLINE_LINUX_DEFAULT='
+    # GRUB reads its theme before the root filesystem is unlocked, so it lives next to grub.cfg.
+    # ponytail: copied once; reinstall it here when divineos-base's theme changes
+    rm -rf /boot/grub/themes/divineos
+    install -d /boot/grub/themes
+    cp -r /usr/share/grub/themes/divineos /boot/grub/themes/
+    set_var /etc/default/grub GRUB_THEME '"/boot/grub/themes/divineos/theme.txt"'
+    set_var /etc/default/grub GRUB_GFXMODE auto
+    set_var /etc/default/grub GRUB_DISTRIBUTOR '"divineOS"' # also the menu entry's icon class
+    set_var /etc/default/grub GRUB_TIMEOUT_STYLE menu
+    set_var /etc/default/grub GRUB_DISABLE_OS_PROBER false # list Windows and other systems
+  fi
+
+  for f in /etc/mkinitcpio.conf /etc/mkinitcpio.conf.d/*.conf; do
+    add_hook "$f"
+  done
+  mkinitcpio -P
+  if [[ -f /boot/grub/grub.cfg ]]; then
+    grub-mkconfig -o /boot/grub/grub.cfg
+  fi
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  main
+fi

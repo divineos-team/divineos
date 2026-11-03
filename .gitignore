@@ -1,0 +1,6 @@
+# Build output (ISOs, out/repo) and stray local cargo builds
+out/
+target/
+# The repo signing key never goes in git; only its public half may.
+*.key
+secret*.asc

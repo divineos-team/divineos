@@ -1,0 +1,15 @@
+# One cursor per line: name, svg/<file>.svg, hotspot x y (in the 32-unit viewBox), rotation in
+# degrees, frames (1 = still, more = the {ROT} arc spins once over them), then alias names.
+# Shapes not listed here fall back to Adwaita (index.theme Inherits).
+default     arrow       6  4   0  1  left_ptr arrow top_left_arrow left_arrow
+pointer     hand        13 4   0  1  hand hand1 hand2 pointing_hand grab openhand 9d800788f1b08800ae810202380a0822 e29285e634086352946a0e7090d73106
+text        text        16 16  0  1  xterm ibeam
+wait        wait        16 16  0  12 watch
+progress    progress    6  4   0  12 left_ptr_watch half-busy 08e8e1c95fe2fc01f976f1e063a24ccd 3ecb610c1bf2410f44200f48c40d3599
+crosshair   crosshair   16 16  0  1  cross tcross cross_reverse diamond_cross cell plus
+not-allowed not-allowed 16 16  0  1  no-drop dnd-no-drop crossed_circle forbidden circle 03b6e0fcb3499374a867c041f52298f0
+move        move        16 16  0  1  fleur all-scroll size_all grabbing closedhand dnd-move
+ns-resize   resize      16 16  0  1  n-resize s-resize row-resize size_ver sb_v_double_arrow v_double_arrow top_side bottom_side 00008160000006810000408080010102
+ew-resize   resize      16 16  90 1  e-resize w-resize col-resize size_hor sb_h_double_arrow h_double_arrow left_side right_side 028006030e0e7ebffc7f7070c0600140 14fef782d02440884392942c11205230
+nwse-resize resize      16 16  -45 1 nw-resize se-resize size_fdiag bd_double_arrow top_left_corner bottom_right_corner c7088f0f3e6c8088236ef8e1e3e70000
+nesw-resize resize      16 16  45 1  ne-resize sw-resize size_bdiag fd_double_arrow top_right_corner bottom_left_corner fcf1c3c3f1d6fe20d8fd5f04a3a49a5c

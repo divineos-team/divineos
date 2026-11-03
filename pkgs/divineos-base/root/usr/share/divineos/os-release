@@ -1,0 +1,7 @@
+NAME="divineOS"
+PRETTY_NAME="divineOS"
+ID=divineos
+ID_LIKE=arch
+BUILD_ID=rolling
+ANSI_COLOR="38;2;10;132;255"
+LOGO=divineos

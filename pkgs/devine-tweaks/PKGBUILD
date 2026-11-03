@@ -1,0 +1,22 @@
+# Maintainer: devine
+# The Settings window itself is QML in divine-shell (Tweaks.qml); this package adds the
+# privileged helper, its polkit action, and the launcher.
+pkgname=devine-tweaks
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='divineOS Settings: appearance, displays, sound and kernel performance settings'
+arch=(any)
+license=(GPL-3.0-or-later)
+depends=(bash procps-ng polkit libpulse hyprland divine-shell)
+
+check() {
+  bash "$startdir/test.sh"
+}
+
+package() {
+  install -Dm755 "$startdir/apply-sysctl" -t "$pkgdir/usr/lib/devine-tweaks/"
+  install -Dm644 "$startdir/org.divineos.tweaks.policy" -t "$pkgdir/usr/share/polkit-1/actions/"
+  install -Dm755 "$startdir/devine-tweaks" -t "$pkgdir/usr/bin/"
+  install -Dm644 "$startdir/devine-tweaks.desktop" -t "$pkgdir/usr/share/applications/"
+  install -Dm644 "$startdir/devine-tweaks.svg" -t "$pkgdir/usr/share/icons/hicolor/scalable/apps/"
+}

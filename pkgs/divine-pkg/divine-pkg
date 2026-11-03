@@ -1,0 +1,295 @@
+#!/usr/bin/env bash
+# divine-pkg: one package command for the Arch repos, the AUR and Debian.
+#
+# Arch packages install natively with pacman and AUR packages through paru. Debian
+# packages install into a rootless Distrobox container; their commands and desktop
+# entries are exported to the host, so .deb and Arch software run side by side without
+# sharing (or breaking) each other's libraries.
+set -euo pipefail
+
+BOX=${DIVINE_PKG_BOX:-debian}
+IMAGE=${DIVINE_PKG_IMAGE:-docker.io/library/debian:stable}
+STATE=${XDG_DATA_HOME:-$HOME/.local/share}/divine-pkg/debian # one file per Debian package: its exports
+BIN=$HOME/.local/bin
+SUBUID=${DIVINE_PKG_SUBUID:-/etc/subuid}
+YES=0
+
+usage() {
+	cat <<'EOF'
+divine-pkg: install from the Arch repos, the AUR or Debian with one command
+
+usage:
+  divine-pkg install <pkg|file>...   Arch repo → AUR → Debian, first match wins
+  divine-pkg remove <pkg>...
+  divine-pkg update                  everything: pacman, AUR and the Debian container
+  divine-pkg search <terms>
+  divine-pkg info <pkg>
+  divine-pkg list
+  divine-pkg shell                   open a shell in the Debian container
+  divine-pkg run <command>...        run a command in the Debian container
+
+Pick a source explicitly with arch:<pkg>, aur:<pkg> or deb:<pkg>. Local files work too:
+foo.deb goes to Debian, foo.pkg.tar.zst to pacman. -y/--yes answers prompts with yes.
+EOF
+}
+
+say() { printf '\033[1;36m==>\033[0m \033[1m%s\033[0m\n' "$*"; }
+note() { printf '\033[2m    %s\033[0m\n' "$*"; }
+die() {
+	printf '\033[1;31merror:\033[0m %s\n' "$*" >&2
+	exit 1
+}
+ask() {
+	((YES)) && return 0
+	local answer
+	read -rp $'\033[1;33m::\033[0m '"$1"' [Y/n] ' answer || return 1 # no terminal: no
+	[[ -z $answer || $answer == [Yy]* ]]
+}
+
+valid_name() { [[ $1 =~ ^[a-zA-Z0-9@._+-]+$ ]] || die "'$1' is not a valid package name"; }
+
+# ── Debian container ──
+
+box_exists() { podman container exists "$BOX" 2>/dev/null; }
+box() { distrobox enter "$BOX" -- "$@" </dev/null; }
+
+box_ready() {
+	box_exists && return 0
+	# Rootless podman maps container users onto the host user's subordinate ID range.
+	grep -q "^$(id -un):" "$SUBUID" 2>/dev/null ||
+		die "$(id -un) has no subordinate IDs for rootless containers; run: sudo usermod --add-subuids 100000-165535 --add-subgids 100000-165535 $(id -un)"
+	say "Creating the Debian container ($IMAGE)"
+	note "One-time download. Debian packages live in it; their commands appear on the host."
+	distrobox create --yes --no-entry --name "$BOX" --image "$IMAGE"
+}
+
+# Export a Debian package's commands and desktop entries to the host, skipping commands
+# the host already has so a Debian copy never shadows an Arch one.
+deb_export() {
+	local pkg=$1 path name
+	local files
+	mapfile -t files < <(box dpkg -L "$pkg")
+	mkdir -p "$STATE"
+	: >"$STATE/$pkg"
+	for path in "${files[@]}"; do
+		case $path in
+		/usr/bin/?* | /usr/sbin/?* | /usr/games/?* | /bin/?* | /sbin/?*)
+			name=${path##*/}
+			if PATH=${PATH//$BIN:/} command -v "$name" >/dev/null; then
+				note "not exporting $name: the host already has it (use: divine-pkg run $name)"
+				continue
+			fi
+			box distrobox-export --bin "$path" --export-path "$BIN" >/dev/null && echo "bin $path" >>"$STATE/$pkg"
+			;;
+		/usr/share/applications/?*.desktop)
+			name=${path##*/}
+			box distrobox-export --app "${name%.desktop}" >/dev/null && echo "app ${name%.desktop}" >>"$STATE/$pkg"
+			;;
+		esac
+	done
+	note "$pkg: exported $(grep -c . "$STATE/$pkg" || true) commands/apps"
+}
+
+deb_unexport() {
+	local pkg=$1 kind target
+	[[ -f $STATE/$pkg ]] || return 0
+	while read -r kind target; do
+		case $kind in
+		bin) box distrobox-export --bin "$target" --export-path "$BIN" --delete >/dev/null || true ;;
+		app) box distrobox-export --app "$target" --delete >/dev/null || true ;;
+		esac
+	done <"$STATE/$pkg"
+	rm -f "$STATE/$pkg"
+}
+
+# Debian package names; .deb files are given as absolute host paths.
+deb_install() {
+	box_ready
+	local targets=() names=() p
+	for p in "$@"; do
+		if [[ $p == /* ]]; then
+			targets+=("/run/host$p") # distrobox mounts the host's / at /run/host
+			names+=("$(box dpkg-deb -f "/run/host$p" Package)")
+		else
+			targets+=("$p")
+			names+=("$p")
+		fi
+	done
+	say "Installing from Debian: ${names[*]}"
+	box sudo apt-get update -q
+	box sudo apt-get install -y "${targets[@]}"
+	for p in "${names[@]}"; do deb_export "$p"; done
+}
+
+# ── Resolution ──
+
+in_repo() { pacman -Si -- "$1" >/dev/null 2>&1; }
+in_aur() { curl -fsS "https://aur.archlinux.org/rpc/v5/info?arg%5B%5D=${1//+/%2B}" 2>/dev/null | grep -q '"resultcount":1'; }
+in_debian() { box apt-cache show -- "$1" >/dev/null 2>&1; }
+
+# Prints arch, aur or deb for `pkg` or `source:pkg`; nothing when it isn't found.
+resolve() {
+	local pkg=${1#*:}
+	case $1 in
+	arch:* | aur:* | deb:*) echo "${1%%:*}" ;;
+	*)
+		if in_repo "$pkg"; then
+			echo arch
+		elif in_aur "$pkg"; then
+			echo aur
+		elif box_exists || ask "$pkg isn't in Arch or the AUR. Look in Debian (sets up a container once)?"; then
+			box_ready >&2
+			if in_debian "$pkg"; then echo deb; fi
+		fi
+		;;
+	esac
+}
+
+# ── Commands ──
+
+cmd_install() {
+	(($#)) || die "install what?"
+	local arch=() aur=() deb=() files=() spec name src
+	for spec in "$@"; do
+		case $spec in
+		*.deb) [[ -f $spec ]] || die "$spec: no such file"; deb+=("$(realpath "$spec")") ;;
+		*.pkg.tar.*) [[ -f $spec ]] || die "$spec: no such file"; files+=("$spec") ;;
+		*)
+			name=${spec#*:}
+			valid_name "$name"
+			src=$(resolve "$spec")
+			case $src in
+			arch) arch+=("$name") ;;
+			aur) aur+=("$name") ;;
+			deb) deb+=("$name") ;;
+			*) die "$name: not found in the Arch repos, the AUR or Debian" ;;
+			esac
+			[[ $spec == *:* ]] || note "$name → $src"
+			;;
+		esac
+	done
+
+	if ((${#files[@]})); then
+		say "Installing local packages"
+		sudo pacman -U "${files[@]}"
+	fi
+	if ((${#arch[@]})); then
+		say "Installing from Arch: ${arch[*]}"
+		sudo pacman -S --needed "${arch[@]}"
+	fi
+	if ((${#aur[@]})); then
+		say "Installing from the AUR: ${aur[*]}"
+		note "AUR packages are community-made: read the PKGBUILD paru shows you before building."
+		paru -S --aur --needed "${aur[@]}"
+	fi
+	if ((${#deb[@]})); then
+		deb_install "${deb[@]}"
+	fi
+}
+
+cmd_remove() {
+	(($#)) || die "remove what?"
+	local arch=() deb=() spec name
+	for spec in "$@"; do
+		name=${spec#*:}
+		valid_name "$name"
+		if [[ $spec != arch:* && $spec != aur:* && -f $STATE/$name ]]; then
+			deb+=("$name")
+		elif [[ $spec != deb:* ]] && pacman -Qq -- "$name" >/dev/null 2>&1; then
+			arch+=("$name")
+		else
+			die "$name is not installed"
+		fi
+	done
+	if ((${#arch[@]})); then
+		say "Removing from the host: ${arch[*]}"
+		sudo pacman -Rns "${arch[@]}"
+	fi
+	if ((${#deb[@]})); then
+		say "Removing from Debian: ${deb[*]}"
+		for name in "${deb[@]}"; do deb_unexport "$name"; done
+		box sudo apt-get remove -y --autoremove "${deb[@]}"
+	fi
+}
+
+cmd_update() {
+	say "Updating Arch and AUR packages"
+	paru -Syu
+	if box_exists; then
+		say "Updating the Debian container"
+		box sudo apt-get update -q
+		box sudo apt-get upgrade -y
+	fi
+}
+
+cmd_search() {
+	(($#)) || die "search for what?"
+	say "Arch repos"
+	pacman -Ss -- "$@" || note "no matches"
+	say "AUR"
+	paru -Ssa -- "$@" || note "no matches"
+	say "Debian"
+	if box_exists; then
+		box apt-cache search --names-only -- "$*" || note "no matches"
+	else
+		note "container not set up yet; it's created on the first Debian install (or: divine-pkg shell)"
+	fi
+}
+
+cmd_info() {
+	(($# == 1)) || die "info takes one package"
+	local name=${1#*:}
+	valid_name "$name"
+	local src
+	src=$(resolve "$1")
+	case $src in
+	arch) pacman -Si -- "$name" ;;
+	aur) paru -Si --aur -- "$name" ;;
+	deb) box apt-cache show -- "$name" ;;
+	*) die "$name: not found" ;;
+	esac
+}
+
+cmd_list() {
+	say "Arch (installed explicitly)"
+	pacman -Qen
+	say "AUR"
+	pacman -Qm || note "none"
+	say "Debian (via divine-pkg)"
+	if compgen -G "$STATE/*" >/dev/null; then
+		local f
+		for f in "$STATE"/*; do
+			printf '%s  \033[2m%s\033[0m\n' "${f##*/}" "$(cut -d' ' -f2 "$f" | xargs -r -n1 basename | tr '\n' ' ')"
+		done
+	else
+		note "none"
+	fi
+}
+
+main() {
+	local args=() a
+	for a in "$@"; do
+		case $a in
+		-y | --yes) YES=1 ;;
+		*) args+=("$a") ;;
+		esac
+	done
+	set -- "${args[@]+"${args[@]}"}"
+	(($#)) || { usage; exit 2; }
+	local cmd=$1
+	shift
+	case $cmd in
+	install | i | add) cmd_install "$@" ;;
+	remove | rm | uninstall) cmd_remove "$@" ;;
+	update | upgrade | up) cmd_update ;;
+	search | s) cmd_search "$@" ;;
+	info) cmd_info "$@" ;;
+	list | ls) cmd_list ;;
+	shell) box_ready && distrobox enter "$BOX" ;;
+	run) (($#)) || die "run what?"; box_ready && distrobox enter "$BOX" -- "$@" ;;
+	help | -h | --help) usage ;;
+	*) usage; exit 2 ;;
+	esac
+}
+
+main "$@"

@@ -1,0 +1,3 @@
+#%PAM-1.0
+# divine-shell lock screen: the same checks as a console login (pam_unix, faillock).
+auth       include      login

@@ -1,0 +1,18 @@
+post_install() {
+  plymouth-set-default-theme divineos
+  systemctl enable greetd.service ananicy-cpp.service NetworkManager.service bluetooth.service
+  systemctl set-default graphical.target
+  _trust_repo
+}
+
+post_upgrade() {
+  _trust_repo
+}
+
+# Trust the hosted [divine] repo's signing key, when this build ships one and pacman's
+# keyring exists (divine-install's post-install initialises it otherwise).
+_trust_repo() {
+  if [ -f /usr/share/pacman/keyrings/divineos.gpg ] && [ -d /etc/pacman.d/gnupg ]; then
+    pacman-key --populate divineos
+  fi
+}

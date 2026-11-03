@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- {ROT} turns the arc; make-cursors.sh fills it in once per frame. -->
+  <defs>
+    <filter id="s" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="0.8"/>
+      <feOffset dy="0.8"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.4"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <linearGradient id="g" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#5E5CE6"/>
+      <stop offset=".55" stop-color="#0A84FF"/>
+      <stop offset="1" stop-color="#64D2FF"/>
+    </linearGradient>
+  </defs>
+  <g filter="url(#s)">
+    <circle cx="16" cy="16" r="8" fill="none" stroke="#fff" stroke-width="5.6"/>
+    <circle cx="16" cy="16" r="8" fill="none" stroke="#0E1220" stroke-width="3.2"/>
+    <circle cx="16" cy="16" r="8" fill="none" stroke="url(#g)" stroke-width="3.2" stroke-linecap="round" stroke-dasharray="18 32.3" transform="rotate({ROT} 16 16)"/>
+  </g>
+</svg>

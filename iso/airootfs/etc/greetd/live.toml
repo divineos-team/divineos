@@ -1,0 +1,11 @@
+# Live ISO: boot straight into divineDE as "live"; the login screen after logout (no password).
+[terminal]
+vt = 1
+
+[initial_session]
+command = "start-hyprland"
+user = "live"
+
+[default_session]
+command = "divine-greeter"
+user = "greeter"

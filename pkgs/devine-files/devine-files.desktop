@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Files
+GenericName=File Manager
+Comment=Browse and manage files in two panes
+Exec=devine-files %F
+Icon=devine-files
+Categories=System;FileTools;FileManager;Utility;
+Keywords=folder;explorer;finder;manager;browse;copy;move;
+MimeType=inode/directory;

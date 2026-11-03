@@ -1,0 +1,20 @@
+# Maintainer: devine
+pkgname=divine-cursors
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='divineOS cursor theme'
+arch=(any)
+license=(GPL-3.0-or-later)
+depends=(adwaita-cursors) # the shapes divineOS doesn't draw (help, zoom, copy…)
+makedepends=(librsvg xorg-xcursorgen)
+
+build() {
+  bash "$startdir/make-cursors.sh" "$startdir/svg" "$startdir/cursors.list" theme
+}
+
+package() {
+  install -d "$pkgdir/usr/share/icons/divineOS"
+  cp -P -r theme/cursors "$pkgdir/usr/share/icons/divineOS/"
+  install -Dm644 "$startdir/index.theme" -t "$pkgdir/usr/share/icons/divineOS/"
+  install -Dm644 "$startdir/90_divine-cursors.gschema.override" -t "$pkgdir/usr/share/glib-2.0/schemas/"
+}
