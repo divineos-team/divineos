@@ -14,6 +14,7 @@ usage:
   repostation search <terms>        search GitHub
   repostation install <owner/repo>  build from source and install
   repostation update [owner/repo]   rebuild what moved upstream (everything when omitted)
+  repostation outdated              list installed apps that moved upstream
   repostation remove <owner/repo>   uninstall
   repostation list                  show installed apps
 
@@ -47,6 +48,7 @@ fn main() -> ExitCode {
         ["install", repo] => engine::install(repo),
         ["update"] => engine::update(None),
         ["update", repo] => engine::update(Some(repo)),
+        ["outdated"] => engine::outdated(),
         ["remove", repo] => engine::remove(repo),
         ["list"] => {
             list();

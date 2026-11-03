@@ -8,9 +8,11 @@ Item {
 
     property bool controlCenterOpen: false
     property date now: new Date()
+    property int updates: 0
     signal launcherRequested
     signal controlCenterRequested
     signal notificationCenterRequested
+    signal updatesRequested
 
     implicitHeight: 32
 
@@ -83,6 +85,22 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         spacing: 16
 
+        Tray {
+            anchors.verticalCenter: parent.verticalCenter
+        }
+
+        // Updates waiting: click for the Store's Updates tab.
+        Row {
+            visible: bar.updates > 0
+            spacing: 4
+            anchors.verticalCenter: parent.verticalCenter
+            BarGlyph { text: Theme.icons.download }
+            BarText { text: bar.updates; anchors.verticalCenter: parent.verticalCenter }
+            TapHandler { // a MouseArea can't fill a Row
+                margin: 6
+                onTapped: bar.updatesRequested()
+            }
+        }
         Row {
             visible: Sys.hasBattery
             spacing: 4
@@ -139,9 +157,20 @@ Item {
             }
         }
 
-        // The clock opens the Notification Center, as on macOS.
+        // Weather and clock open the Notification Center (calendar, forecast), as on macOS.
+        Row {
+            visible: Sys.weatherOn && Sys.weather !== null
+            spacing: 5
+            anchors.verticalCenter: parent.verticalCenter
+            BarGlyph { text: Sys.weather?.glyph ?? "" }
+            BarText { text: (Sys.weather?.temp ?? "") + "°"; anchors.verticalCenter: parent.verticalCenter }
+            TapHandler {
+                margin: 6
+                onTapped: bar.notificationCenterRequested()
+            }
+        }
         BarText {
-            text: Qt.formatDateTime(bar.now, "ddd MMM d") + "   " + Qt.formatDateTime(bar.now, "h:mm AP")
+            text: Qt.formatDateTime(bar.now, "ddd MMM d") + "   " + Qt.formatDateTime(bar.now, Sys.clock24 ? "H:mm" : "h:mm AP")
             anchors.verticalCenter: parent.verticalCenter
             MouseArea {
                 anchors.fill: parent

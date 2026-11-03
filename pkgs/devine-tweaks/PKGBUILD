@@ -1,22 +1,36 @@
 # Maintainer: devine
 # The Settings window itself is QML in divine-shell (Tweaks.qml); this package adds the
-# privileged helper, its polkit action, and the launcher.
+# privileged helpers, their polkit actions, and the launchers (Settings, Customize, Disks, Backup).
 pkgname=devine-tweaks
 pkgver=0.1.0
 pkgrel=1
-pkgdesc='divineOS Settings: appearance, displays, sound and kernel performance settings'
+pkgdesc='divineOS Settings: appearance and customization, desktop and dock, displays, sound, network and VPN, Bluetooth, printers, keyboard, mouse and touchpad, power, date and time, users, default and startup apps, drivers, disks, backup and performance'
 arch=(any)
 license=(GPL-3.0-or-later)
-depends=(bash procps-ng polkit libpulse hyprland divine-shell)
+depends=(bash procps-ng polkit libpulse hyprland divine-shell shadow systemd glib2 xkeyboard-config hypridle divine-pkg fontconfig
+  # Printers: driverless printing; avahi finds network printers, ipp-usb makes USB ones look like them
+  cups cups-filters avahi ipp-usb
+  # VPN: WireGuard is built into NetworkManager; OpenVPN needs its plugin
+  networkmanager networkmanager-openvpn
+  # Disks: lsblk, sfdisk and dd, a mkfs for each filesystem it offers, udisks for mounting
+  util-linux coreutils dosfstools exfatprogs ntfs-3g e2fsprogs udisks2
+  # Backup: Timeshift's Btrfs snapshots
+  timeshift)
+
+_helpers=(apply-sysctl manage-users printers disks backup snapshots)
+_launchers=(devine-tweaks devine-customizer devine-disks devine-backup)
 
 check() {
   bash "$startdir/test.sh"
 }
 
 package() {
-  install -Dm755 "$startdir/apply-sysctl" -t "$pkgdir/usr/lib/devine-tweaks/"
+  install -Dm755 "${_helpers[@]/#/$startdir/}" -t "$pkgdir/usr/lib/devine-tweaks/"
   install -Dm644 "$startdir/org.divineos.tweaks.policy" -t "$pkgdir/usr/share/polkit-1/actions/"
-  install -Dm755 "$startdir/devine-tweaks" -t "$pkgdir/usr/bin/"
-  install -Dm644 "$startdir/devine-tweaks.desktop" -t "$pkgdir/usr/share/applications/"
-  install -Dm644 "$startdir/devine-tweaks.svg" -t "$pkgdir/usr/share/icons/hicolor/scalable/apps/"
+  install -Dm755 "${_launchers[@]/#/$startdir/}" -t "$pkgdir/usr/bin/"
+  local l
+  for l in "${_launchers[@]}"; do
+    install -Dm644 "$startdir/$l.desktop" -t "$pkgdir/usr/share/applications/"
+    install -Dm644 "$startdir/$l.svg" -t "$pkgdir/usr/share/icons/hicolor/scalable/apps/"
+  done
 }

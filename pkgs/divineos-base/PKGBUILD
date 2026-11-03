@@ -10,6 +10,8 @@ license=(GPL-3.0-or-later)
 depends=(
   # performance
   zram-generator ananicy-cpp
+  # snapshots: Timeshift on Btrfs, listed in the boot menu (Settings > Backup)
+  btrfs-progs timeshift grub-btrfs inotify-tools
   # boot + login
   plymouth greetd greetd-tuigreet sudo
   # compositor + session
@@ -34,7 +36,18 @@ _branding="$startdir/../../branding"
 build() {
   rsvg-convert -w 160 "$_branding/logo.svg" -o logo.png
   rsvg-convert -w 3840 -h 2160 "$_branding/wallpaper.svg" -o wallpaper.png
+  # Tide in other colours for Settings > Appearance: dusk, ember and lagoon
+  local v
+  for v in dusk:70 ember:155 lagoon:-50; do
+    _hue "${v#*:}" < "$_branding/wallpaper.svg" | rsvg-convert -w 3840 -h 2160 -o "${v%%:*}.png"
+  done
   _grub_theme grub-theme
+}
+
+# The wallpaper SVG on stdin with its colours turned DEGREES round the colour wheel.
+_hue() { # degrees
+  sed -e "s|</defs>|<filter id=\"hue\" filterUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"1920\" height=\"1080\" color-interpolation-filters=\"sRGB\"><feColorMatrix type=\"hueRotate\" values=\"$1\"/></filter></defs><g filter=\"url(#hue)\">|" \
+    -e 's|</svg>|</g></svg>|'
 }
 
 # The GRUB theme (branding/grub/theme.txt) and the images and fonts it names. Installed systems
@@ -86,9 +99,11 @@ package() {
 
   install -Dm644 logo.png -t "$pkgdir/usr/share/plymouth/themes/divineos/"
   install -Dm644 wallpaper.png "$pkgdir/usr/share/backgrounds/divineos/default.png"
+  install -Dm644 dusk.png ember.png lagoon.png -t "$pkgdir/usr/share/backgrounds/divineos/"
   install -Dm644 "$_branding/logo.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/divineos.svg"
   install -Dm644 "$_branding/logo.txt" -t "$pkgdir/usr/share/divineos/"
   install -Dm755 "$startdir/post-install" -t "$pkgdir/usr/lib/divineos/" # run by divine-install
+  install -Dm755 "$startdir/snapshot" -t "$pkgdir/usr/lib/divineos/" # run by 05-divineos-snapshot.hook
   install -d "$pkgdir/usr/share/grub/themes"
   cp -r --no-preserve=ownership grub-theme "$pkgdir/usr/share/grub/themes/divineos"
 

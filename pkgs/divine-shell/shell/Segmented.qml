@@ -36,7 +36,7 @@ Rectangle {
                     anchors.centerIn: parent
                     text: parent.modelData.label
                     font.weight: Font.DemiBold
-                    color: parent.on ? (Theme.dark ? Theme.accent : "#ffffff") : Theme.text
+                    color: parent.on ? (Theme.dark ? Theme.accentInk : Theme.textOnAccent) : Theme.text
                 }
                 MouseArea {
                     anchors.fill: parent

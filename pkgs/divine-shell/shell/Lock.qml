@@ -44,6 +44,7 @@ Scope {
                 anchors.fill: parent
                 wallpaper: Sys.wallpaper
                 now: root.now
+                clock24: Sys.clock24
                 userName: Sys.fullName
                 avatar: Sys.face
                 busy: pam.active

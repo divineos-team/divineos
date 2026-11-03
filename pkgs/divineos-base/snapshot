@@ -1,0 +1,12 @@
+#!/bin/sh
+# Run by 05-divineos-snapshot.hook before pacman changes packages: a Timeshift snapshot tagged
+# daily, so Timeshift's daily rotation (five kept) clears them out. Only where post-install set
+# Timeshift up (a Btrfs install), and at most one an hour, so a run of installs makes one.
+# Never stops the update.
+conf=/etc/timeshift/timeshift.json stamp=/var/lib/divineos/snapshot-stamp
+grep -qs '"btrfs_mode" *: *"true"' "$conf" || exit 0
+[ -n "$(find "$stamp" -mmin -60 2>/dev/null)" ] && exit 0
+mkdir -p "${stamp%/*}" && touch "$stamp"
+timeshift --create --scripted --tags D --comments "Before update" >/dev/null ||
+  echo "divineOS: couldn't make a snapshot before this update" >&2
+exit 0

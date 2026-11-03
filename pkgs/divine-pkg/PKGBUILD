@@ -2,15 +2,18 @@
 pkgname=divine-pkg
 pkgver=0.1.0
 pkgrel=1
-pkgdesc='One package command for the Arch repos, the AUR (paru) and Debian (Distrobox)'
+pkgdesc='One package command for the Arch repos, the AUR (paru) and Debian (Distrobox), plus driver detection'
 arch=(any)
 license=(GPL-3.0-or-later)
-depends=(bash coreutils grep pacman sudo curl paru distrobox podman)
+depends=(bash coreutils grep pacman sudo curl paru distrobox podman polkit systemd)
 
 check() {
   bash "$startdir/test.sh"
 }
 
 package() {
-  install -Dm755 "$startdir/divine-pkg" -t "$pkgdir/usr/bin/"
+  install -Dm755 "$startdir/divine-pkg" "$startdir/divine-drivers" -t "$pkgdir/usr/bin/"
+  # the Store's and Settings' root half (pkexec)
+  install -Dm755 "$startdir/pkg-helper" -t "$pkgdir/usr/lib/divine-pkg/"
+  install -Dm644 "$startdir/org.divineos.pkg.policy" -t "$pkgdir/usr/share/polkit-1/actions/"
 }

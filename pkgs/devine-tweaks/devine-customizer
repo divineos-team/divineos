@@ -1,0 +1,4 @@
+#!/bin/sh
+# devine-customizer: divineOS's look, in Settings: Appearance (accent, wallpaper, icons, pointer,
+# font), or `devine-customizer desktop` for Desktop & Dock (layouts, windows, glass, motion, dock).
+exec devine-tweaks "${1:-appearance}"

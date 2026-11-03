@@ -1,0 +1,4 @@
+#!/bin/sh
+# devine-tweaks' snapshot list for Settings > Backup, run as root through pkexec with no password
+# (polkit action org.divineos.tweaks.snapshots): Timeshift needs root even to look.
+exec timeshift --list --scripted

@@ -1,11 +1,12 @@
 import QtQuick
 import Quickshell
 import Quickshell.Hyprland
+import Quickshell.Io
 import Quickshell.Wayland
 
 // divineDE shell: wallpaper, menu bar and dock on every monitor; one Control Center, launcher,
 // Notification Center, notification banners, OSD, lock screen, app switcher, overview,
-// capture bar and the Welcome guide. Run with `qs -p /usr/share/divine-shell`. Hyprland binds
+// capture bar, Settings, the Store and the Welcome guide. Run with `qs -p /usr/share/divine-shell`. Hyprland binds
 // keys to the global shortcuts below.
 ShellRoot {
     SystemClock {
@@ -37,6 +38,7 @@ ShellRoot {
             }
 
             PanelWindow {
+                visible: Sys.layout !== "windows" // the taskbar has it all there
                 screen: perScreen.modelData
                 anchors { top: true; left: true; right: true }
                 implicitHeight: bar.implicitHeight
@@ -48,14 +50,33 @@ ShellRoot {
                     anchors.fill: parent
                     now: clock.date
                     controlCenterOpen: controlCenter.open
+                    updates: store.updates.length
                     onLauncherRequested: launcher.toggle()
                     onControlCenterRequested: controlCenter.toggle()
                     onNotificationCenterRequested: notificationCenter.toggle()
+                    onUpdatesRequested: store.show("updates")
                 }
             }
 
             Dock {
+                visible: Sys.layout !== "windows"
                 screen: perScreen.modelData
+            }
+
+            Widgets {
+                visible: perScreen.modelData === Quickshell.screens[0] // the first screen only
+                screen: perScreen.modelData
+                now: clock.date
+            }
+
+            Taskbar {
+                visible: Sys.layout === "windows"
+                screen: perScreen.modelData
+                now: clock.date
+                controlCenterOpen: controlCenter.open
+                onLauncherRequested: launcher.toggle()
+                onControlCenterRequested: controlCenter.toggle()
+                onNotificationCenterRequested: notificationCenter.toggle()
             }
         }
     }
@@ -100,6 +121,15 @@ ShellRoot {
         id: captureBar
     }
 
+    Markup {}
+
+    IpcHandler {
+        target: "capture"
+        function toggle(): void {
+            captureBar.toggle();
+        }
+    }
+
     Monitor {
         id: monitor
     }
@@ -108,7 +138,13 @@ ShellRoot {
         id: tweaks
     }
 
-    Welcome {}
+    Store {
+        id: store
+    }
+
+    Welcome {
+        onApplyTheme: theme => tweaks.applyTheme(theme)
+    }
 
     GlobalShortcut {
         appid: "divine"
@@ -192,6 +228,25 @@ ShellRoot {
         name: "lock"
         description: "Lock the screen"
         onPressed: lock.lock()
+    }
+
+    // hypridle (Settings > Power) turns the screens off and back on through here.
+    IpcHandler {
+        target: "screen"
+        function off(): void {
+            Hyprland.dispatch('hl.dsp.dpms({ action = "off" })');
+        }
+        function on(): void {
+            Hyprland.dispatch('hl.dsp.dpms({ action = "on" })');
+        }
+    }
+
+    // hyprsunset runs Night Light's schedule and calls back at each switch, so the toggles follow.
+    IpcHandler {
+        target: "nightlight"
+        function sync(): void {
+            Sys.syncNightLight();
+        }
     }
 
     // Brightness keys come here (not straight to brightnessctl) so the OSD can show the level.

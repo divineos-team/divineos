@@ -17,6 +17,7 @@ Singleton {
     readonly property color rim: dark ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(0, 0, 0, 0.07)
     readonly property real gloss: dark ? 0.04 : 0.2
     readonly property color hover: dark ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(0, 0, 0, 0.05)
+    readonly property color menu: dark ? Qt.rgba(0.13, 0.14, 0.2, 0.98) : Qt.rgba(0.98, 0.98, 0.99, 0.98) // menus and sheets, over the panes
     readonly property color marked: Qt.rgba(0.04, 0.52, 1, 0.3)
     readonly property color accent: "#0A84FF"
     readonly property color folder: "#4FA3FF"
@@ -50,7 +51,11 @@ Singleton {
         forward: String.fromCodePoint(0xF0054),
         up: String.fromCodePoint(0xF005D),
         chevron: String.fromCodePoint(0xF0142),
-        git: String.fromCodePoint(0xF02A2)
+        git: String.fromCodePoint(0xF02A2),
+        server: String.fromCodePoint(0xF048D),
+        plus: String.fromCodePoint(0xF0415),
+        eject: String.fromCodePoint(0xF01EA),
+        close: String.fromCodePoint(0xF0156)
     })
 
     readonly property var kinds: ({

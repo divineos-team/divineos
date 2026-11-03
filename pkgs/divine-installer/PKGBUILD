@@ -1,6 +1,6 @@
 # Maintainer: devine
 # The live ISO's installer: a Quickshell window (app/) over a root backend that partitions,
-# formats and runs pacstrap. Only the ISO ships it.
+# formats and copies the live system onto the disk. Only the ISO ships it.
 pkgname=divine-installer
 pkgver=0.1.0
 pkgrel=1
@@ -9,8 +9,8 @@ arch=(any)
 license=(GPL-3.0-or-later)
 depends=(
   bash sudo quickshell qt6-declarative qt6-svg inter-font ttf-nerd-fonts-symbols
-  jq util-linux arch-install-scripts os-prober networkmanager
-  e2fsprogs dosfstools ntfs-3g cryptsetup gparted # formatting, shrinking, manual partitioning
+  jq util-linux arch-install-scripts rsync os-prober networkmanager divine-pkg
+  btrfs-progs e2fsprogs dosfstools ntfs-3g cryptsetup gparted # formatting, shrinking, manual partitioning
 )
 
 check() {

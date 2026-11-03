@@ -78,4 +78,11 @@ copy_skel "$t/skel" "$t/passwd"
 check "skel copied" new "$(cat "$t/home/ana/.config/hypr/hyprland.lua")"
 check "skel keeps existing" mine "$(cat "$t/home/ana/.bashrc")"
 
+timeshift_conf "$t/timeshift/timeshift.json" 1234-abcd
+check "timeshift: btrfs mode on that filesystem" 2 "$(grep -cE '"backup_device_uuid" : "1234-abcd"|"btrfs_mode" : "true"' "$t/timeshift/timeshift.json")"
+echo '{}' > "$t/timeshift/timeshift.json"
+timeshift_conf "$t/timeshift/timeshift.json" other
+check "timeshift: settings already there are kept" '{}' "$(cat "$t/timeshift/timeshift.json")"
+command -v jq > /dev/null && rm "$t/timeshift/timeshift.json" && timeshift_conf "$t/timeshift/timeshift.json" x && jq -e . "$t/timeshift/timeshift.json" > /dev/null && echo "ok   timeshift: valid JSON"
+
 exit "$fail"

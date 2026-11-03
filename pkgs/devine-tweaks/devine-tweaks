@@ -1,3 +1,7 @@
 #!/bin/sh
 # devine-tweaks: open divineOS Settings, a divine-shell window (Super+comma does the same).
+# `devine-tweaks PAGE` opens a page: appearance, desktop, drivers, keyboard, power, users…
+if [ -n "$1" ]; then
+  exec qs -p /usr/share/divine-shell ipc call tweaks show "$1"
+fi
 exec qs -p /usr/share/divine-shell ipc call tweaks toggle

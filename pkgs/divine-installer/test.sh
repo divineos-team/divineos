@@ -60,6 +60,18 @@ for bad in "hostname -pc" "hostname my.pc" "user Ana" "user 1ana" "user a;b" "fu
 done
 echo "ok   bad settings refused"
 
+check "copy progress from rsync" $'step 15 Copying divineOS\nstep 47 Copying divineOS\nstep 80 Copying divineOS' \
+  "$(printf '          0   0%%    0.00kB/s    0:00:00\r  1,048,576  50%%    1.00MB/s    0:00:01\r  2,097,152 100%%    1.00MB/s    0:00:02 (xfr#9, to-chk=0/12)\n' | copy_progress 3>&1)"
+
+mkdir -p "$t/root/etc/greetd" "$t/root/etc/systemd/system/multi-user.target.wants" "$t/root/etc/pacman.d/gnupg" "$t/root/root"
+touch "$t/root/etc/greetd/live.toml" "$t/root/etc/greetd/divineos.toml" "$t/root/root/.zlogin" "$t/root/etc/motd" \
+  "$t/root/etc/systemd/system/multi-user.target.wants/"{systemd-resolved,NetworkManager}.service
+echo "Welcome to the live system" > "$t/root/etc/motd"
+strip_live "$t/root"
+check "live-only files go, divineOS's stay" "etc/greetd/divineos.toml etc/motd etc/systemd/system/multi-user.target.wants/NetworkManager.service" \
+  "$(cd "$t/root" && find . -type f | sed 's|^\./||' | sort | xargs)"
+check "empty motd" "" "$(cat "$t/root/etc/motd")"
+
 if command -v jq > /dev/null; then
   lsblk='{"blockdevices": [
     {"path": "/dev/sda", "type": "disk", "size": 128849018880, "model": "VMware Virtual S  ", "tran": "spi", "pttype": "gpt", "ro": false, "children": [

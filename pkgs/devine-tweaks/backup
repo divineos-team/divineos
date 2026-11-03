@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# devine-tweaks' snapshot helper, run as root through pkexec (polkit action org.divineos.tweaks.backup).
+# Timeshift does the work in its Btrfs mode: snapshots are instant, home folders aren't in them,
+# and the boot menu lists them (grub-btrfs). The list is `snapshots`, which needs no password.
+#   backup [--dry-run] create [DESCRIPTION]
+#   backup [--dry-run] restore NAME     the system goes back to NAME at the next start
+#   backup [--dry-run] delete NAME
+set -euo pipefail
+
+die() {
+	echo "backup: $*" >&2
+	exit 1
+}
+
+run=()
+if [[ ${1-} == --dry-run ]]; then
+	run=(echo)
+	shift
+fi
+action=${1-} arg=${2-}
+
+case $action in
+create)
+	re='^[A-Za-z0-9 .,:_-]{0,80}$'
+	[[ $arg =~ $re ]] || die "refusing that description: letters, digits and . , : _ - only"
+	"${run[@]}" timeshift --create --scripted --tags O --comments "${arg:-Made in Settings}"
+	;;
+restore | delete)
+	[[ $arg =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}$ ]] || die "refusing the snapshot '$arg'"
+	if [[ $action == restore ]]; then
+		"${run[@]}" timeshift --restore --snapshot "$arg" --scripted --yes --skip-grub
+	else
+		"${run[@]}" timeshift --delete --snapshot "$arg" --scripted
+	fi
+	;;
+*)
+	echo "usage: backup [--dry-run] create [DESCRIPTION] | restore NAME | delete NAME" >&2
+	exit 2
+	;;
+esac

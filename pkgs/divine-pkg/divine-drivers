@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# The drivers and guest tools this computer needs beyond what every divineOS has.
+#   divine-drivers                  what they are, as JSON: [{ id, name, about, packages[], installed }]
+#   divine-drivers --install [ID…]  (as root) install them, all by default, and turn on their services
+# divine-install runs --install in the new system for the ones the ISO already has; Settings >
+# Drivers runs it through pkg-helper.
+set -euo pipefail
+
+sys=${DIVINE_DRIVERS_SYS:-/sys} # test.sh points it at a made-up /sys
+
+die() {
+	echo "divine-drivers: $*" >&2
+	exit 1
+}
+
+# One line per driver: id|name|about|packages|services
+drivers() {
+	case $(systemd-detect-virt --vm 2>/dev/null || true) in
+	vmware) echo "vmware|VMware guest tools|Shared folders, time sync and a clean shut down from VMware's menu.|open-vm-tools|vmtoolsd vmware-vmblock-fuse" ;;
+	oracle) echo "virtualbox|VirtualBox guest tools|Shared folders and time sync with VirtualBox.|virtualbox-guest-utils-nox|vboxservice" ;;
+	kvm | qemu) echo "qemu|QEMU guest agent|A clean shut down and time sync from QEMU, KVM and virt-manager.|qemu-guest-agent|" ;;
+	microsoft) echo "hyperv|Hyper-V guest tools|Time sync, a clean shut down and backups from Hyper-V.|hyperv|hv_kvp_daemon hv_vss_daemon" ;;
+	esac
+	local d vendors=""
+	for d in "$sys"/bus/pci/devices/*; do
+		[[ $(cat "$d/class" 2>/dev/null) == 0x03* ]] && vendors+=" $(cat "$d/vendor")" # display controllers
+	done
+	# ponytail: GeForce GTX 10 and older can't run nvidia-open; nvidia-580xx from the AUR if they matter
+	[[ $vendors == *0x10de* ]] && echo "nvidia|NVIDIA graphics driver|Full speed for GeForce GTX 16, RTX 20 and newer. Older cards keep the open-source driver. Takes effect after a restart.|nvidia-open nvidia-utils|"
+	[[ $vendors == *0x1002* ]] && echo "amd|AMD graphics extras|Vulkan, for games and 3D apps.|vulkan-radeon|"
+	[[ $vendors == *0x8086* ]] && echo "intel|Intel graphics extras|Vulkan, and hardware video decoding that saves battery.|vulkan-intel intel-media-driver|"
+	return 0
+}
+
+have() { pacman -Qq "$@" >/dev/null 2>&1; }
+
+list() {
+	local id name about pkgs svcs sep=""
+	printf '['
+	while IFS='|' read -r id name about pkgs svcs; do
+		# shellcheck disable=SC2086 # package lists split on spaces
+		printf '%s{"id":"%s","name":"%s","about":"%s","packages":["%s"],"installed":%s}' "$sep" "$id" "$name" "$about" \
+			"${pkgs// /\",\"}" "$(have $pkgs && echo true || echo false)"
+		sep=,
+	done < <(drivers)
+	printf ']\n'
+}
+
+install_drivers() { # ID...
+	local rows row id name about pkgs svcs p chosen=() keep=() missing=() failed=0
+	mapfile -t rows < <(drivers)
+	for id in "$@"; do
+		printf '%s\n' "${rows[@]}" | grep -q "^$id|" || die "this computer doesn't need '$id'"
+	done
+	for row in "${rows[@]}"; do
+		IFS='|' read -r id name about pkgs svcs <<< "$row"
+		(($# == 0)) || [[ " $* " == *" $id "* ]] || continue
+		chosen+=("$row")
+		for p in $pkgs; do
+			if have "$p"; then keep+=("$p"); else missing+=("$p"); fi
+		done
+	done
+	# Explicit, so the installer's clean-up of unneeded packages keeps them.
+	((${#keep[@]} == 0)) || pacman -D --asexplicit "${keep[@]}" >/dev/null
+	if ((${#missing[@]})) && ! pacman -Syu --needed --noconfirm "${missing[@]}"; then
+		failed=1
+	fi
+	for row in "${chosen[@]}"; do
+		IFS='|' read -r id name about pkgs svcs <<< "$row"
+		# shellcheck disable=SC2086 # package and service lists split on spaces
+		if [[ -n $svcs ]] && have $pkgs; then
+			systemctl enable --now $svcs || failed=1 # inside arch-chroot --now only enables
+		fi
+	done
+	return $failed
+}
+
+case ${1-} in
+"") list ;;
+--install) shift; install_drivers "$@" ;;
+*) echo "usage: divine-drivers [--install [ID...]]" >&2; exit 2 ;;
+esac

@@ -16,6 +16,6 @@ Pressable {
         anchors.centerIn: parent
         text: button.icon
         font.pixelSize: 24
-        color: button.active ? Theme.accent : Theme.text
+        color: button.active ? Theme.accentInk : Theme.text
     }
 }

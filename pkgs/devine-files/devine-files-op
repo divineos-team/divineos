@@ -4,6 +4,7 @@
 #   devine-files-op copy    DEST SRC...
 #   devine-files-op move    DEST SRC...
 #   devine-files-op extract DEST ARCHIVE...   each into its own folder, via bsdtar (libarchive)
+#   devine-files-op compress DEST SRC...      one zip; prints its path
 #   devine-files-op trash   SRC...
 #   devine-files-op mkdir   DIR               prints the new folder's path
 #   devine-files-op rename  PATH NEWNAME
@@ -75,6 +76,26 @@ extract)
 		fi
 	done
 	;;
+compress)
+	# One zip of items from one folder, named after the item (or "Archive.zip"); prints its path.
+	dest=$1
+	shift
+	need_dir "$dest"
+	(($#)) || { fail "compress what?"; exit 1; }
+	first=${1%/} names=()
+	for src in "$@"; do
+		src=${src%/}
+		[[ ${src%/*} == "${first%/*}" ]] || { fail "compress items from one folder at a time"; exit 1; }
+		[[ ${src##*/} == -* ]] && names+=("./${src##*/}") || names+=("${src##*/}") # never an option
+	done
+	if (($# == 1)); then target=$(free "$dest" "${first##*/}.zip"); else target=$(free "$dest" "Archive.zip"); fi
+	if bsdtar -a -cf "$target" -C "${first%/*}" "${names[@]}"; then
+		printf '%s\n' "$target"
+	else
+		fail "couldn't compress"
+		rm -f -- "$target"
+	fi
+	;;
 trash)
 	(($#)) && { gio trash -- "$@" || fail "couldn't move to Trash"; }
 	;;
@@ -97,7 +118,7 @@ rename)
 	fi
 	;;
 *)
-	fail "usage: devine-files-op copy|move|extract|trash|mkdir|rename …"
+	fail "usage: devine-files-op copy|move|extract|compress|trash|mkdir|rename …"
 	;;
 esac
 exit $status

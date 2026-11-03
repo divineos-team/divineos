@@ -94,4 +94,54 @@ pass "rejects invalid package names"
 if run install nothing-here >/dev/null 2>&1; then echo "FAIL: installed a missing package"; exit 1; fi
 pass "unknown package fails cleanly"
 
+# --- pkg-helper: only validated names reach pacman (--dry-run prints the command) ---
+helper() { bash "$here/pkg-helper" --dry-run "$@"; }
+[[ $(helper install firefox) == "pacman -Syu --needed --noconfirm -- firefox" ]]
+[[ $(helper remove gimp) == "pacman -Rns --noconfirm -- gimp" ]]
+[[ $(helper upgrade) == "pacman -Syu --noconfirm" ]]
+[[ $(helper drivers nvidia) == "divine-drivers --install nvidia" ]]
+pass "pkg-helper builds the pacman commands"
+for bad in -rf --root=/tmp 'a;b' 'a b' ../x; do
+	if helper install "$bad" >/dev/null 2>&1; then printf 'FAIL: pkg-helper accepted %q\n' "$bad"; exit 1; fi
+done
+if helper upgrade firefox >/dev/null 2>&1 || helper install >/dev/null 2>&1 || helper erase x >/dev/null 2>&1; then
+	echo "FAIL: pkg-helper accepted a bad command"; exit 1
+fi
+pass "pkg-helper refuses options, odd names and unknown commands"
+
+# --- divine-drivers on a made-up VMware machine with Intel and NVIDIA graphics ---
+mkdev() { mkdir -p "$tmp/sys/bus/pci/devices/$1" && echo "$2" >"$tmp/sys/bus/pci/devices/$1/class" && echo "$3" >"$tmp/sys/bus/pci/devices/$1/vendor"; }
+mkdev 0000:00:02.0 0x030000 0x8086 # Intel graphics
+mkdev 0000:01:00.0 0x030200 0x10de # NVIDIA 3D controller
+mkdev 0000:01:00.1 0x040300 0x1002 # sound with AMD's vendor id: not graphics
+echo open-vm-tools >"$tmp/installed"
+stub systemd-detect-virt 'echo vmware'
+stub systemctl
+stub pacman "case \$1 in -Qq) shift; for p; do grep -qx \"\$p\" $tmp/installed || exit 1; done ;; esac"
+drivers() {
+	: >"$log"
+	DIVINE_DRIVERS_SYS=$tmp/sys PATH="$tmp/bin:$PATH" bash "$here/divine-drivers" "$@"
+}
+json=$(drivers)
+grep -qF '{"id":"vmware","name":"VMware guest tools"' <<<"$json"
+grep -qF '"packages":["open-vm-tools"],"installed":true}' <<<"$json"
+grep -qF '"packages":["nvidia-open","nvidia-utils"],"installed":false}' <<<"$json"
+grep -qF '"id":"intel"' <<<"$json"
+if grep -qF '"id":"amd"' <<<"$json"; then echo "FAIL: listed AMD for a sound device"; exit 1; fi
+[[ $json == \[*\] ]]
+pass "divine-drivers lists what this machine needs"
+
+drivers --install vmware
+expect "pacman -D --asexplicit open-vm-tools"
+expect "systemctl enable --now vmtoolsd vmware-vmblock-fuse"
+reject "pacman -Syu"
+pass "installed guest tools are kept and turned on, offline"
+
+drivers --install
+expect "pacman -Syu --needed --noconfirm nvidia-open nvidia-utils vulkan-intel intel-media-driver"
+pass "missing drivers install with a full upgrade"
+
+if drivers --install amd >/dev/null 2>&1; then echo "FAIL: installed a driver this machine doesn't need"; exit 1; fi
+pass "refuses drivers for hardware that isn't there"
+
 echo "all divine-pkg routing tests passed"

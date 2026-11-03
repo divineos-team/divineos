@@ -5,13 +5,14 @@
 #   backend shrink-info PART   JSON: the smallest size PART can shrink to, with room to grow ("keep")
 #   backend install            reads the settings as one line of JSON on stdin (see install), prints
 #                              "step PCT TEXT" lines, then "done" or "error TEXT"
-# Everything commands print (pacstrap, mkfs…) goes to stderr: the installer's log.
+# Everything commands print (rsync, mkfs…) goes to stderr: the installer's log.
 set -euo pipefail
 
 readonly MiB=$((1 << 20)) GiB=$((1 << 30))
 readonly min_root=$((20 * GiB))
-readonly repo=/usr/local/share/divineos/repo # the ISO's copy of [divine]
+readonly live=/run/archiso/airootfs # the ISO's system as built, which the install copies
 readonly esp_type=c12a7328-f81f-11d2-ba4b-00a0c93ec93b bios_type=21686148-6449-6e6f-744e-656564454649 # "Hah!IdontNeedEFI"
+readonly subvolumes=(@:/ @home:/home @log:/var/log @pkg:/var/cache/pacman/pkg) # Btrfs subvolume:mount point, @ first
 
 # --- pieces with no side effects (test.sh covers them) ---
 
@@ -72,6 +73,35 @@ crypt_hook() { # mkinitcpio.conf luks-uuid
     sed -Ei '/^HOOKS=/ s/\bfilesystems\b/encrypt &/' "$1"
     echo "cryptdevice=UUID=$2:root"
   fi
+}
+
+# What a copy of the live system has that an installed one mustn't: archiso's live setup (its
+# releng profile) and divineOS's live session. Paths under the new root.
+live_only() {
+  printf '%s\n' \
+    etc/mkinitcpio.conf.d/archiso.conf etc/resolv.conf etc/pacman.d/gnupg \
+    etc/ssh/sshd_config.d/10-archiso.conf \
+    etc/systemd/journald.conf.d/volatile-storage.conf etc/systemd/logind.conf.d/do-not-suspend.conf \
+    etc/systemd/network/20-{ethernet,wlan,wwan}.network \
+    etc/systemd/networkd.conf.d/ipv6-privacy-extensions.conf etc/systemd/resolved.conf.d/archiso.conf \
+    etc/systemd/system-generators/systemd-gpt-auto-generator \
+    etc/systemd/system/{choose-mirror,livecd-alsa-unmuter,livecd-talk,pacman-init}.service \
+    etc/systemd/system/etc-pacman.d-gnupg.mount etc/systemd/system/getty@tty1.service.d/autologin.conf \
+    etc/systemd/system/systemd-networkd-wait-online.service.d \
+    etc/systemd/system/dbus-org.freedesktop.{network1,resolve1}.service \
+    etc/systemd/system/multi-user.target.wants/{systemd-networkd,systemd-resolved}.service \
+    etc/systemd/system/network-online.target.wants/systemd-networkd-wait-online.service \
+    etc/systemd/system/sockets.target.wants/systemd-networkd.socket \
+    etc/systemd/system/sysinit.target.wants/systemd-time-wait-sync.service \
+    etc/greetd/live.toml etc/systemd/system/greetd.service.d/live.conf \
+    root/.automated_script.sh root/.zlogin root/.gnupg \
+    usr/local/bin/{Installation_guide,choose-mirror,livecd-sound} usr/local/share/livecd-sound
+}
+# Services of packages the install removes later leave dangling links; it deletes those then.
+strip_live() { # root
+  local f
+  while IFS= read -r f; do rm -rf "${1:?}/$f"; done < <(live_only)
+  : > "$1/etc/motd"
 }
 
 # The keyboard layout in divineDE's hyprland.lua (the copy in the new user's home).
@@ -211,20 +241,14 @@ shrink() { # partition bytes
   udevadm settle
 }
 
-# Turns pacman's package lines into progress: downloads 15-45%, installs 45-85%.
-progress() {
-  local line total=0 got=0 put=0
-  while IFS= read -r line; do
-    printf '%s\n' "$line" >&2
-    if [[ $line =~ ^Packages\ \(([0-9]+)\) ]]; then
-      total=${BASH_REMATCH[1]}
-    elif ((total)) && [[ $line == *downloading* ]]; then
-      ((got < total)) && ((++got))
-      step $((15 + 30 * got / total)) "Downloading packages"
-    elif ((total)) && [[ $line =~ installing\ ([^ .]+) ]]; then
-      ((put < total)) && ((++put))
-      step $((45 + 40 * put / total)) "Installing ${BASH_REMATCH[1]}"
-    fi
+# Turns rsync's --info=progress2 lines ("  1,234,567  42%  …", split by CRs) into 15–80%.
+copy_progress() {
+  local line pct last=-1
+  tr '\r' '\n' | while IFS= read -r line; do
+    [[ $line =~ \ ([0-9]+)%\  ]] || continue
+    pct=$((15 + 65 * BASH_REMATCH[1] / 100))
+    ((pct == last)) || step "$pct" "Copying divineOS"
+    last=$pct
   done
 }
 
@@ -260,12 +284,7 @@ install() {
   trap cleanup EXIT
   cleanup
 
-  # Fail before touching any disk when there's no internet.
-  step 2 "Connecting to the package mirrors"
-  local conf=/tmp/divine-install.conf
-  { cat /etc/pacman.conf; printf '\n[divine]\nSigLevel = Optional TrustAll\nServer = file://%s\n' "$repo"; } > "$conf"
-  pacman --config "$conf" -Sy --noconfirm archlinux-keyring ||
-    die "Can't reach the package mirrors. Connect to the internet (Wi-Fi is in the Control Center) and try again."
+  [[ -d $live/usr ]] || die "Install from the divineOS live system: there's no system image to copy."
 
   # 1. Partitions: root, plus the ESP (UEFI) and a separate /boot (BIOS + encryption).
   step 5 "Preparing the disk"
@@ -346,30 +365,69 @@ install() {
     rootdev=/dev/mapper/root
   fi
   wipefs -aq "$rootdev"
-  mkfs.ext4 -Fq -L divineOS "$rootdev"
+  mkfs.btrfs -fq -L divineOS "$rootdev"
+  [[ -z $boot ]] || mkfs.ext4 -Fq -L boot "$boot"
+  if [[ $new_esp == true ]]; then mkfs.fat -F 32 -n EFI "$esp"; fi
+  # Btrfs in Timeshift's layout, for Settings > Backup's snapshots: @ is the system (what a
+  # snapshot keeps), @home the users' files; logs and downloaded packages stay out, so going
+  # back to a snapshot keeps them.
   mount "$rootdev" /mnt
-  if [[ -n $boot ]]; then
-    mkfs.ext4 -Fq -L boot "$boot"
-    mount --mkdir "$boot" /mnt/boot
-  fi
-  if [[ -n $esp ]]; then
-    if [[ $new_esp == true ]]; then mkfs.fat -F 32 -n EFI "$esp"; fi
-    mount --mkdir "$esp" "/mnt$espdir"
-  fi
+  local sub
+  for sub in "${subvolumes[@]}"; do btrfs -q subvolume create "/mnt/${sub%%:*}"; done
+  umount /mnt
+  for sub in "${subvolumes[@]}"; do
+    mount --mkdir -o "subvol=${sub%%:*},compress=zstd,noatime" "$rootdev" "/mnt${sub#*:}"
+  done
 
-  # 3. Packages: Arch from the mirrors, divineOS's own from the ISO
-  step 15 "Downloading packages"
-  local pkgs=(base linux linux-firmware divineos-base grub os-prober) vendor
-  [[ $uefi == true ]] && pkgs+=(efibootmgr)
-  [[ $encrypt == true ]] && pkgs+=(cryptsetup)
+  # 3. divineOS: a copy of this live system (no downloads), minus what only the live system needs.
+  # Copied before /boot and the ESP are mounted: the image's /boot is empty, and a FAT ESP can't
+  # take rsync's owners.
+  # ponytail: rsync from the mounted squashfs is single-threaded; unsquashfs if copying gets slow
+  step 15 "Copying divineOS"
+  rsync -aHAXS --numeric-ids --info=progress2 --no-inc-recursive "$live/" /mnt/ | copy_progress ||
+    die "Copying divineOS failed."
+  [[ -z $boot ]] || mount --mkdir "$boot" /mnt/boot
+  [[ -z $esp ]] || mount --mkdir "$esp" "/mnt$espdir"
+
+  step 80 "Setting up the new system"
+  strip_live /mnt
+  local kernel
+  kernel=$(grep -lx linux /mnt/usr/lib/modules/*/pkgbase) || die "The live system has no kernel to copy."
+  install -Dm644 "${kernel%/pkgbase}/vmlinuz" /mnt/boot/vmlinuz-linux # archiso empties /boot
+  sed 's|%PKGBASE%|linux|g' /mnt/usr/share/mkinitcpio/hook.preset > /mnt/etc/mkinitcpio.d/linux.preset
+  rm -f /mnt/etc/machine-id
+  systemd-machine-id-setup --root=/mnt
+  cp /etc/pacman.d/mirrorlist /mnt/etc/pacman.d/mirrorlist # the mirrors this live system found
+  # shellcheck disable=SC2016 # pacman expands $repo and $arch
+  grep -q '^Server' /mnt/etc/pacman.d/mirrorlist || echo 'Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch' >> /mnt/etc/pacman.d/mirrorlist
+  arch-chroot /mnt pacman-key --init
+  arch-chroot /mnt pacman-key --populate archlinux
+  arch-chroot /mnt usermod -s /usr/bin/bash root # archiso's root uses zsh, which goes below
+
+  # Everything becomes a dependency of divineOS's base set and the drivers this computer uses;
+  # the live system's tools (archinstall, other VMs' guest tools…) are then unneeded and go.
+  step 83 "Removing the live system's tools"
+  local keep=(base linux linux-firmware sof-firmware divineos-base grub os-prober ntfs-3g exfatprogs nano) vendor drivers orphans
+  [[ $uefi == true ]] && keep+=(efibootmgr)
+  [[ $encrypt == true ]] && keep+=(cryptsetup)
   vendor=$(grep -m1 -o 'GenuineIntel\|AuthenticAMD' /proc/cpuinfo || true)
-  case $vendor in GenuineIntel) pkgs+=(intel-ucode) ;; AuthenticAMD) pkgs+=(amd-ucode) ;; esac
-  pacstrap -C "$conf" -K /mnt "${pkgs[@]}" 2>&1 | progress ||
-    die "Installing the packages failed. Check the internet connection and try again."
+  case $vendor in GenuineIntel) keep+=(intel-ucode) ;; AuthenticAMD) keep+=(amd-ucode) ;; esac
+  arch-chroot /mnt sh -c 'pacman -Qqe | pacman -D --asdeps -' > /dev/null
+  arch-chroot /mnt pacman -D --asexplicit "${keep[@]}" > /dev/null || die "The live system is missing part of divineOS."
+  # Drivers the ISO has (this VM's guest tools); the rest need the internet: Settings > Drivers.
+  drivers=$(arch-chroot /mnt divine-drivers | jq -r '.[] | select(.installed) | .id')
+  # shellcheck disable=SC2086 # one id per word
+  [[ -z $drivers ]] || arch-chroot /mnt divine-drivers --install $drivers || true
+  while orphans=$(arch-chroot /mnt pacman -Qdtq); do
+    # shellcheck disable=SC2086 # one package per word
+    arch-chroot /mnt pacman -Rns --noconfirm $orphans || die "Removing the live system's tools failed."
+  done
+  arch-chroot /mnt find /etc/systemd/system -xtype l -delete
 
   # 4. System settings
   step 86 "Setting up $hostname"
-  genfstab -U /mnt >> /mnt/etc/fstab
+  # Mounted by name alone: restoring a snapshot gives @ a new subvolume id.
+  genfstab -U /mnt | sed 's/,subvolid=[0-9]*//' >> /mnt/etc/fstab
   echo "$hostname" > /mnt/etc/hostname
   printf '127.0.0.1 localhost\n::1 localhost\n127.0.1.1 %s.localdomain %s\n' "$hostname" "$hostname" >> /mnt/etc/hosts
   ln -sf "/usr/share/zoneinfo/$timezone" /mnt/etc/localtime

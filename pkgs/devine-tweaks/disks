@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# devine-tweaks' disk helper, run as root through pkexec (polkit action org.divineos.tweaks.disks).
+# Erases a USB stick or any drive that isn't running this system, reformats one partition, or
+# writes a disc image (ISO) onto a drive. Never touches the running system's disk; anything
+# else mounted on the device is unmounted first.
+#   disks [--dry-run] erase DISK FS [LABEL]       one partition over the whole disk (MBR: any device reads it)
+#   disks [--dry-run] format PARTITION FS [LABEL]
+#   disks [--dry-run] write DISK IMAGE            the image is read with the rights of the user who asked
+# FS: exfat, fat32, ntfs or ext4.
+set -euo pipefail
+shopt -s nocasematch
+
+die() {
+	echo "disks: $*" >&2
+	exit 1
+}
+
+run=()
+if [[ ${1-} == --dry-run ]]; then
+	run=(echo)
+	shift
+fi
+action=${1-} dev=${2-}
+case $action in erase | format | write) ;; *)
+	echo "usage: disks [--dry-run] erase DISK FS [LABEL] | format PARTITION FS [LABEL] | write DISK IMAGE" >&2
+	exit 2
+	;;
+esac
+
+# The user pkexec acts for: new ext4 filesystems are theirs, and images are read as them.
+uid=${PKEXEC_UID:-$(id -u)}
+user=$(id -nu "$uid") || die "who is asking?"
+
+[[ $dev =~ ^/dev/(sd[a-z]+|vd[a-z]+|nvme[0-9]+n[0-9]+|mmcblk[0-9]+)(p?[0-9]+)?$ ]] || die "refusing the device '$dev'"
+type=$(lsblk -dno TYPE "$dev") || die "$dev isn't a drive"
+if [[ $action == format ]]; then
+	[[ $type == part ]] || die "$dev isn't a partition"
+else
+	[[ $type == disk ]] || die "$dev isn't a whole disk"
+fi
+[[ $(lsblk -dno RO "$dev" | tr -d ' ') == 0 ]] || die "$dev is read-only"
+lsblk -lno TYPE "$dev" | grep -Eqx 'crypt|lvm' && die "$dev is in use (unlocked encryption or LVM); close it first"
+mounts=$(lsblk -lno MOUNTPOINTS "$dev" | sed '/^$/d' | sort -r) # deepest first
+while IFS= read -r m; do
+	case $m in / | /boot | /efi | /boot/efi | /home | /usr | /var | '[SWAP]' | /run/archiso/bootmnt) die "$dev has this system on it" ;; esac
+done <<<"$mounts"
+
+# Checked before anything is unmounted.
+fs=${3-} label=${4-}
+if [[ $action != write ]]; then
+	case $fs in exfat | fat32 | ntfs | ext4) ;; *) die "refusing the filesystem '$fs'" ;; esac
+	[[ $label =~ ^[A-Za-z0-9\ _-]{0,32}$ ]] || die "refusing the name '$label': letters, digits, spaces, _ and - only"
+else
+	image=$fs
+	[[ $image == /* && $image =~ \.(iso|img)$ && -f $image ]] || die "refusing the image '$image'"
+	(($(stat -c %s "$image") <= $(blockdev --getsize64 "$dev"))) || die "the image is bigger than the drive"
+fi
+
+while IFS= read -r m; do
+	[[ -z $m ]] || "${run[@]}" umount -- "$m"
+done <<<"$mounts"
+
+mkfs() { # partition
+	local name=()
+	case $fs in
+	exfat)
+		[[ -z $label ]] || name=(-L "${label:0:15}")
+		"${run[@]}" mkfs.exfat "${name[@]}" "$1"
+		;;
+	fat32)
+		[[ -z $label ]] || name=(-n "${label:0:11}")
+		"${run[@]}" mkfs.fat -F 32 "${name[@]}" "$1"
+		;;
+	ntfs)
+		[[ -z $label ]] || name=(-L "$label")
+		"${run[@]}" mkfs.ntfs -Q "${name[@]}" "$1"
+		;;
+	ext4)
+		[[ -z $label ]] || name=(-L "${label:0:16}")
+		"${run[@]}" mkfs.ext4 -F -q "${name[@]}" -E "root_owner=$uid:$(id -g "$user")" "$1"
+		;;
+	esac
+}
+
+case $action in
+erase)
+	code=$(case $fs in fat32) echo c ;; ext4) echo 83 ;; *) echo 7 ;; esac)
+	printf 'type=%s\n' "$code" | "${run[@]}" sfdisk --quiet --wipe always --wipe-partitions always --label dos "$dev"
+	"${run[@]}" udevadm settle
+	if [[ $dev =~ [0-9]$ ]]; then mkfs "${dev}p1"; else mkfs "${dev}1"; fi
+	;;
+format)
+	"${run[@]}" wipefs -aq "$dev"
+	mkfs "$dev"
+	;;
+write)
+	if ((${#run[@]})); then
+		echo "runuser -u $user -- cat -- $image | dd of=$dev bs=4M iflag=fullblock oflag=direct conv=fsync status=progress"
+	else
+		runuser -u "$user" -- cat -- "$image" | dd of="$dev" bs=4M iflag=fullblock oflag=direct conv=fsync status=progress
+		sync
+	fi
+	;;
+esac

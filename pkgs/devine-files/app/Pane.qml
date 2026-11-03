@@ -28,6 +28,7 @@ Glass {
     signal openFile(string path)
     signal renameRequested(string path, string name)
     signal editDone // hand keyboard focus back
+    signal menuRequested(real x, real y) // right-click on a row, in the pane's coordinates
 
     function url(path) {
         // Encode each segment so names with # or % survive; a drive letter only appears in the preview.
@@ -39,6 +40,12 @@ Glass {
     }
     function pathAt(i) {
         return i >= 0 && i < files.count ? files.get(i, "filePath") : "";
+    }
+    function isDir(path) {
+        for (let i = 0; i < files.count; i++)
+            if (files.get(i, "filePath") === path)
+                return files.get(i, "fileIsDir");
+        return false;
     }
 
     function cd(path, fromHistory) {
@@ -437,9 +444,19 @@ Glass {
 
             MouseArea {
                 anchors.fill: parent
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
                 onPressed: mouse => {
                     pane.clicked();
-                    if (mouse.modifiers & Qt.ControlModifier)
+                    if (mouse.button === Qt.RightButton) {
+                        // Right-clicking outside the selection selects just that row, like Finder.
+                        if (!row.isMarked) {
+                            pane.marked = {};
+                            pane.current = row.index;
+                        }
+                        pane.renaming = false;
+                        const p = mapToItem(pane, mouse.x, mouse.y);
+                        pane.menuRequested(p.x, p.y);
+                    } else if (mouse.modifiers & Qt.ControlModifier)
                         pane.toggleMark(row.index);
                     else if (mouse.modifiers & Qt.ShiftModifier)
                         pane.markRange(row.index);
@@ -449,7 +466,10 @@ Glass {
                         pane.current = row.index;
                     }
                 }
-                onDoubleClicked: pane.open(row.index)
+                onDoubleClicked: mouse => {
+                    if (mouse.button === Qt.LeftButton)
+                        pane.open(row.index);
+                }
             }
 
             // Inline rename: Enter saves, Esc or clicking away cancels.

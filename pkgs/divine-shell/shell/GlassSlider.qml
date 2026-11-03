@@ -10,6 +10,7 @@ Glass {
     property real value // 0..1
     signal moved(real value)
     signal iconClicked
+    signal endClicked
 
     implicitWidth: Theme.unit * 4 + Theme.gap * 3
     implicitHeight: 84
@@ -45,6 +46,11 @@ Glass {
         width: slider.iconEnd ? 24 : 0
         text: slider.iconEnd
         font.pixelSize: 22
+        MouseArea {
+            anchors.fill: parent
+            anchors.margins: -6
+            onClicked: slider.endClicked()
+        }
     }
 
     Item {

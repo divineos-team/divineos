@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Disks
+GenericName=Disk Utility
+Comment=Format drives and USB sticks, and write disc images to them
+Exec=devine-disks
+Icon=devine-disks
+Categories=System;Utility;
+Keywords=disks;drive;usb;stick;format;erase;partition;iso;flash;image;burn;bootable;mount;eject;exfat;fat32;ntfs;ext4;

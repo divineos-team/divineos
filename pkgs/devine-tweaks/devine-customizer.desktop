@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Customize
+GenericName=Appearance
+Comment=Accent colour, wallpaper, icons, pointer, font, window layout and the dock
+Exec=devine-customizer
+Icon=devine-customizer
+Categories=Settings;DesktopSettings;
+Keywords=customizer;theme;accent;colour;color;wallpaper;background;icons;cursor;pointer;font;gaps;rounding;corners;border;blur;glass;animation;motion;dock;layout;

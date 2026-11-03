@@ -10,12 +10,14 @@ license=(GPL-3.0-or-later)
 depends=(
   bash coreutils quickshell qt6-declarative qt6-svg qt6-imageformats
   glib2 gsettings-desktop-schemas # gio open/trash, the light/dark setting
+  gvfs gvfs-smb # gio mount: SMB, SFTP, FTP, WebDAV; unmounting drives
   libarchive git kitty
   inter-font ttf-nerd-fonts-symbols
 )
 
 check() {
   bash "$startdir/test.sh"
+  ! command -v node >/dev/null || node "$startdir/test-js.mjs"
 }
 
 package() {

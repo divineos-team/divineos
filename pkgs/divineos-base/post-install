@@ -6,6 +6,7 @@
 #  - Plymouth: "quiet splash" on the kernel command line and the initramfs hook
 #  - divineos-base's tuned zram config instead of any other
 #  - GRUB: the divineOS theme, the name divineOS, and other systems in the menu
+#  - on a Btrfs install: Timeshift snapshots (daily, before updates) and them in the boot menu
 set -euo pipefail
 shopt -s nullglob
 
@@ -58,8 +59,50 @@ copy_skel() { # skel passwd
   done < "$2"
 }
 
+# Timeshift in Btrfs mode on the root filesystem: a snapshot a day, five kept, home folders left
+# out. Written once; Timeshift's own settings take over from then on.
+timeshift_conf() { # file uuid
+  [[ -f $1 ]] && return
+  mkdir -p "${1%/*}"
+  cat > "$1" << EOF
+{
+  "backup_device_uuid" : "$2",
+  "parent_device_uuid" : "",
+  "do_first_run" : "false",
+  "btrfs_mode" : "true",
+  "include_btrfs_home_for_backup" : "false",
+  "include_btrfs_home_for_restore" : "false",
+  "stop_cron_emails" : "true",
+  "schedule_monthly" : "false",
+  "schedule_weekly" : "false",
+  "schedule_daily" : "true",
+  "schedule_hourly" : "false",
+  "schedule_boot" : "false",
+  "count_monthly" : "2",
+  "count_weekly" : "3",
+  "count_daily" : "5",
+  "count_hourly" : "6",
+  "count_boot" : "5",
+  "date_format" : "%Y-%m-%d %H:%M:%S",
+  "exclude" : [],
+  "exclude-apps" : []
+}
+EOF
+}
+
+# Settings > Backup, on a root that's the installer's Btrfs @ subvolume (Timeshift needs that
+# layout): Timeshift's config, the daily timer, and snapshots in the boot menu (grub-btrfsd).
+# ponytail: Timeshift's backup_device_uuid is the Btrfs filesystem's; check it on LUKS installs
+setup_snapshots() {
+  [[ $(findmnt -no FSTYPE /) == btrfs && $(findmnt -no OPTIONS /) =~ subvol=/@(,|$) ]] || return 0
+  timeshift_conf /etc/timeshift/timeshift.json "$(findmnt -no UUID /)"
+  [[ -f /etc/default/grub-btrfs/config ]] && set_var /etc/default/grub-btrfs/config GRUB_BTRFS_SUBMENUNAME '"divineOS snapshots"'
+  systemctl enable grub-btrfsd.service divineos-snapshot.timer
+}
+
 main() {
   pacman_conf /etc/pacman.conf /etc/pacman.d/divine-mirrorlist
+  setup_snapshots
   if [[ -f /usr/share/pacman/keyrings/divineos.gpg ]]; then
     [[ -d /etc/pacman.d/gnupg ]] || pacman-key --init
     pacman-key --populate divineos

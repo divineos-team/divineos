@@ -7,7 +7,7 @@ pkgrel=1
 pkgdesc='divineOS app store for GitHub: search, build from source with native CPU flags, install, update'
 arch=(x86_64)
 license=(GPL-3.0-or-later)
-depends=(git gcc-libs glibc pacman sudo)
+depends=(git gcc-libs glibc pacman sudo polkit) # polkit: pkexec for the Store's background builds
 makedepends=(rust)
 # makepkg's LTO turns ring's C code (TLS) into GCC bytecode that Rust's linker can't read.
 options=(!lto)

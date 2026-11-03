@@ -2,8 +2,8 @@
 Type=Application
 Name=Settings
 GenericName=System Settings
-Comment=Appearance, displays, sound and performance
+Comment=Appearance, desktop and dock, displays, sound, keyboard, power, users, default apps and drivers
 Exec=devine-tweaks
 Icon=devine-tweaks
 Categories=Settings;System;
-Keywords=tweaks;preferences;display;scale;resolution;sound;audio;profile;theme;dark;glass;kernel;sysctl;swappiness;
+Keywords=tweaks;preferences;accent;wallpaper;icons;cursor;font;dock;gaps;display;scale;resolution;sound;audio;profile;theme;dark;glass;kernel;sysctl;swappiness;keyboard;layout;language;power;battery;sleep;idle;lock;time;date;timezone;clock;users;accounts;password;default;browser;drivers;nvidia;guest;

@@ -2,7 +2,7 @@
 pkgname=divine-shell
 pkgver=0.1.0
 pkgrel=1
-pkgdesc='divineDE shell: menu bar, dock, Control Center, launcher, app switcher, overview, notifications, capture bar, Welcome guide, lock and login screens in liquid glass (Quickshell)'
+pkgdesc='divineDE shell: menu bar, dock, Control Center, launcher, app switcher, overview, notifications, capture bar, Store, Welcome guide, lock and login screens in liquid glass (Quickshell)'
 arch=(any)
 license=(GPL-3.0-or-later)
 depends=(
@@ -14,12 +14,17 @@ depends=(
   # services the Control Center drives
   networkmanager bluez bluez-utils upower power-profiles-daemon
   pipewire wireplumber brightnessctl
+  # Night Light, and the weather (Open-Meteo) and the Store's searches
+  hyprsunset curl
   # screenshots and screen recording (capture bar)
   grim slurp wl-clipboard wf-recorder libnotify
   # launcher: clipboard history (hyprland.lua runs wl-paste --watch cliphist store), file search
   cliphist fd glib2
-  # Settings > Account: the picture reaches the login screen through AccountsService
+  # Settings > Users: the picture reaches the login screen through AccountsService
   accountsservice
+  # Store: installs through divine-pkg's helper, AUR builds in kitty, update checks (checkupdates),
+  # Flathub apps, GitHub apps built in the background by RepoStation
+  divine-pkg kitty pacman-contrib fakeroot flatpak repostation
   # type and glyphs
   inter-font ttf-nerd-fonts-symbols
 )
@@ -35,4 +40,7 @@ package() {
   install -Dm755 "$startdir/divine-welcome" -t "$pkgdir/usr/bin/"
   install -Dm644 "$startdir/divine-welcome.desktop" -t "$pkgdir/usr/share/applications/"
   install -Dm644 "$startdir/divine-welcome.svg" -t "$pkgdir/usr/share/icons/hicolor/scalable/apps/"
+  install -Dm755 "$startdir/devine-store" "$startdir/devine-shot" -t "$pkgdir/usr/bin/"
+  install -Dm644 "$startdir/devine-store.desktop" -t "$pkgdir/usr/share/applications/"
+  install -Dm644 "$startdir/devine-store.svg" -t "$pkgdir/usr/share/icons/hicolor/scalable/apps/"
 }

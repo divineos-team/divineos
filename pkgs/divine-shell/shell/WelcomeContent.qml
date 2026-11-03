@@ -1,8 +1,9 @@
 import QtQuick
 import QtQuick.Layouts
 
-// The Welcome guide's view: what's on the desktop, the shortcuts, the apps, and where to go
-// next. Welcome.qml supplies the apps and acts on the signals.
+// The Welcome guide's view: setting up (look, browser, codecs, drivers), what's on the desktop,
+// the shortcuts, the apps, and where to go next. Welcome.qml supplies the data and acts on the
+// signals.
 Item {
     id: root
 
@@ -10,8 +11,18 @@ Item {
     property bool live: false // running from the install medium (divine-install is there)
     property bool showAtStartup: true
     property var apps: [] // { id, name, icon, about }
+    property string accentName: "blue"
+    property var installed: [] // which of the browsers and codecs are
+    property string defaultBrowser: "" // its desktop entry
+    property var drivers: [] // divine-drivers: { id, name, about, packages[], installed }
+    property string busy: "" // a browser's package, "codecs" or "drivers", while it installs
+    property string status: ""
 
     signal install
+    signal applyTheme(var theme)
+    signal getBrowser(string pkg, string desktop) // install if needed, then make it the default
+    signal getCodecs
+    signal installDrivers(var ids)
     signal openApp(string id)
     signal setShowAtStartup(bool on)
 
@@ -73,7 +84,7 @@ Item {
         color: primary ? Theme.accent : pillArea.containsMouse ? Theme.track : Theme.off
         scale: pillArea.pressed ? 0.96 : 1
         Behavior on scale { SpringAnimation { spring: 6; damping: 0.35; epsilon: 0.001 } }
-        Label { id: pillLabel; anchors.centerIn: parent; text: pill.text; font.weight: Font.DemiBold; color: pill.primary ? "#ffffff" : Theme.text }
+        Label { id: pillLabel; anchors.centerIn: parent; text: pill.text; font.weight: Font.DemiBold; color: pill.primary ? Theme.textOnAccent : Theme.text }
         MouseArea { id: pillArea; anchors.fill: parent; hoverEnabled: true; onClicked: pill.clicked() }
     }
 
@@ -95,6 +106,7 @@ Item {
         Repeater {
             model: [
                 { icon: Theme.icons.check, label: "divineOS" },
+                { icon: Theme.icons.settings, label: "Set Up" },
                 { icon: Theme.icons.window, label: "The Desktop" },
                 { icon: Theme.icons.controls, label: "Shortcuts" },
                 { icon: Theme.icons.folder, label: "Apps" },
@@ -112,8 +124,8 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     x: 12
                     spacing: 10
-                    Glyph { text: modelData.icon; font.pixelSize: 18; color: parent.parent.on ? "#ffffff" : Theme.text }
-                    Label { text: modelData.label; font.weight: Font.Medium; color: parent.parent.on ? "#ffffff" : Theme.text; anchors.verticalCenter: parent.verticalCenter }
+                    Glyph { text: modelData.icon; font.pixelSize: 18; color: parent.parent.on ? Theme.textOnAccent : Theme.text }
+                    Label { text: modelData.label; font.weight: Font.Medium; color: parent.parent.on ? Theme.textOnAccent : Theme.text; anchors.verticalCenter: parent.verticalCenter }
                 }
                 MouseArea { id: navHover; anchors.fill: parent; hoverEnabled: true; onClicked: root.page = parent.index }
             }
@@ -138,7 +150,7 @@ Item {
                 color: root.showAtStartup ? Theme.accent : Theme.off
                 border.width: root.showAtStartup ? 0 : 1
                 border.color: Theme.track
-                Glyph { anchors.centerIn: parent; visible: root.showAtStartup; text: Theme.icons.check; font.pixelSize: 14; color: "#ffffff" }
+                Glyph { anchors.centerIn: parent; visible: root.showAtStartup; text: Theme.icons.check; font.pixelSize: 14; color: Theme.textOnAccent }
             }
             Label { text: "Show at startup"; anchors.verticalCenter: parent.verticalCenter }
         }
@@ -204,6 +216,8 @@ Item {
             }
             Item { Layout.fillHeight: true }
         }
+
+        WelcomeSetup { welcome: root }
 
         // The Desktop
         Flickable {
@@ -321,7 +335,7 @@ Item {
                     model: [
                         { title: "Install software", text: "One command finds it in the Arch repos, the AUR or Debian:", code: "divine-pkg install firefox" },
                         { title: "Keep divineOS up to date", text: "Updates Arch packages, AUR packages and the Debian container together:", code: "divine-pkg update" },
-                        { title: "Make it yours", text: "Settings (Super+,) sets dark or light, glass, displays, sound and performance. Right-click the dock to pin apps." },
+                        { title: "Make it yours", text: "Settings (Super+,) has themes and layouts (macOS, Windows 11, Auto-Tiling), displays, network, printers and more. Right-click the dock to pin apps." },
                         { title: "Go deeper", text: "Window rules, keys and animations live in ~/.config/hypr/hyprland.lua. The Arch Wiki (wiki.archlinux.org) covers almost everything else." }
                     ]
                     Card {

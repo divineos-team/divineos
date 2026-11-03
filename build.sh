@@ -88,9 +88,6 @@ fi
 # 2. Profile = archiso's releng (bootloaders, live tooling) + divineOS overlay.
 cp -r /usr/share/archiso/configs/releng "$profile"
 cp -r "$work/src/iso/airootfs/." "$profile/airootfs/"
-# divine-install installs divineOS's own packages from this copy of the repo.
-install -d "$profile/airootfs/usr/local/share/divineos"
-cp -rL "$repo" "$profile/airootfs/usr/local/share/divineos/repo"
 cat "$work/src/iso/packages.x86_64" >> "$profile/packages.x86_64"
 cat "$work/src/iso/profiledef.sh" >> "$profile/profiledef.sh"
 printf '\n[divine]\nSigLevel = Optional TrustAll\nServer = file://%s\n' "$repo" >> "$profile/pacman.conf"

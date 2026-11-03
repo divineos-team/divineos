@@ -1,0 +1,3 @@
+#!/bin/sh
+# devine-disks: format and erase drives, flash a disc image to a USB stick, in Settings > Disks.
+exec devine-tweaks disks

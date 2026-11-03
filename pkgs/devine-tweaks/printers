@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# devine-tweaks' printer helper, run as root through pkexec (polkit action
+# org.divineos.tweaks.printers). Driverless printers only (IPP Everywhere, AirPrint, Mopria):
+# CUPS builds the driver from what the printer reports, so there's nothing to pick.
+#   printers [--dry-run] add NAME URI    URI: ipp://, ipps:// or dnssd://
+#   printers [--dry-run] remove NAME
+set -euo pipefail
+
+die() {
+	echo "printers: $*" >&2
+	exit 1
+}
+
+run=()
+if [[ ${1-} == --dry-run ]]; then
+	run=(echo)
+	shift
+fi
+action=${1-} name=${2-}
+[[ $name =~ ^[A-Za-z0-9][A-Za-z0-9_-]{0,126}$ ]] || die "refusing the printer name '$name'"
+
+case $action in
+add)
+	uri=${3-}
+	[[ $uri =~ ^(ipps?|dnssd)://[A-Za-z0-9._%-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~%/?=\&-]*)?$ ]] || die "refusing the address '$uri'"
+	"${run[@]}" lpadmin -p "$name" -E -v "$uri" -m everywhere
+	;;
+remove)
+	"${run[@]}" lpadmin -x "$name"
+	;;
+*)
+	echo "usage: printers [--dry-run] add NAME URI | remove NAME" >&2
+	exit 2
+	;;
+esac

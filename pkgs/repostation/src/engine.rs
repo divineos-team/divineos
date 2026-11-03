@@ -9,7 +9,7 @@ use crate::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::fs;
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -316,6 +316,18 @@ fn say(msg: &str) {
     println!("\x1b[1;36m==>\x1b[0m \x1b[1m{msg}\x1b[0m");
 }
 
+/// pacman as root: sudo in a terminal; from the Store's background builds (no terminal) polkit
+/// asks for the password instead, and pacman takes its default answers.
+fn pacman(args: &[&str]) -> Command {
+    let tty = io::stdin().is_terminal();
+    let mut c = Command::new(if tty { "sudo" } else { "pkexec" });
+    c.arg("pacman").args(args);
+    if !tty {
+        c.arg("--noconfirm");
+    }
+    c
+}
+
 fn run(cmd: &mut Command) -> Result<()> {
     let line = std::iter::once(cmd.get_program()).chain(cmd.get_args()).map(|a| a.to_string_lossy()).collect::<Vec<_>>().join(" ");
     println!("\x1b[2m$ {line}\x1b[0m");
@@ -455,14 +467,14 @@ fn build_and_install(id: &Id, confirm: bool) -> Result<()> {
     if !missing_mods.is_empty() {
         if !Path::new("/var/lib/pacman/sync/core.files").exists() {
             say("Downloading pacman's file database for library lookup");
-            run(Command::new("sudo").args(["pacman", "-Fy"]))?;
+            run(&mut pacman(&["-Fy"]))?;
         }
         let owners = pacman_owners(&missing_mods);
         missing.extend(pacman_missing(&owners));
     }
     if !missing.is_empty() {
         say("Installing build dependencies");
-        run(Command::new("sudo").args(["pacman", "-S", "--needed"]).args(&missing))?;
+        run(pacman(&["-S", "--needed"]).args(&missing))?;
     }
 
     say(&format!("Building with {}", system.name()));
@@ -551,6 +563,19 @@ pub fn update(repo: Option<&str>) -> Result<()> {
         }
     }
     if failures.is_empty() { Ok(()) } else { Err(format!("failed to update {}", failures.join(", ")).into()) }
+}
+
+/// Installed apps whose default branch moved upstream, one owner/repo per line (the Store's
+/// update check). Apps that can't be reached are skipped.
+pub fn outdated() -> Result<()> {
+    for e in load() {
+        let src = Id::parse(&e.repo)?.dir().join("src");
+        let Ok(remote) = git(&src, &["ls-remote", "origin", "HEAD"]) else { continue };
+        if remote.split_whitespace().next() != Some(e.commit.as_str()) {
+            println!("{}", e.repo);
+        }
+    }
+    Ok(())
 }
 
 pub fn remove(repo: &str) -> Result<()> {

@@ -1,0 +1,7 @@
+#!/bin/sh
+# devine-shot: the capture bar (screen, window, selection, recording), or Mark Up for a picture:
+#   devine-shot [FILE]
+if [ -n "$1" ]; then
+  exec qs -p /usr/share/divine-shell ipc call markup open "$(realpath -- "$1")"
+fi
+exec qs -p /usr/share/divine-shell ipc call capture toggle

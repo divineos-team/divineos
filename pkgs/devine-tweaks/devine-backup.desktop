@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Backup
+GenericName=System Snapshots
+Comment=Snapshot the system and roll back a broken update
+Exec=devine-backup
+Icon=devine-backup
+Categories=System;Settings;
+Keywords=backup;snapshot;restore;rollback;undo;update;timeshift;btrfs;recovery;

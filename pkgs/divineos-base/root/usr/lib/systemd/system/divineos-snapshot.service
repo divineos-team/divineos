@@ -1,0 +1,7 @@
+[Unit]
+Description=Timeshift's scheduled snapshots (Settings > Backup)
+ConditionPathExists=/etc/timeshift/timeshift.json
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/timeshift --check --scripted

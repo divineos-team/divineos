@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# devine-tweaks' account helper, run as root through pkexec (polkit action
+# org.divineos.tweaks.manage-users). It only touches regular accounts (uid 1000–59999), never
+# the account that asked (PKEXEC_UID), and never the last administrator.
+#   manage-users [--dry-run] add NAME FULLNAME admin|standard   the password comes on stdin
+#   manage-users [--dry-run] delete NAME                        the home folder stays
+#   manage-users [--dry-run] admin NAME yes|no
+set -euo pipefail
+
+die() {
+	echo "manage-users: $*" >&2
+	exit 1
+}
+
+run=()
+if [[ ${1-} == --dry-run ]]; then
+	run=(echo)
+	shift
+fi
+action=${1-} name=${2-}
+[[ $name =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || die "refusing the username '$name'"
+
+regular() { # name
+	local uid
+	uid=$(id -u "$1" 2>/dev/null) || die "there's no account $1"
+	((uid >= 1000 && uid < 60000)) || die "$1 isn't a regular account"
+	[[ $uid != "${PKEXEC_UID-}" ]] || die "you can't change your own account here"
+}
+admins() { getent group wheel | cut -d: -f4 | tr ',' '\n' | grep -c . || true; }
+is_admin() { getent group wheel | cut -d: -f4 | tr ',' '\n' | grep -qx "$1"; }
+last_admin() { # name
+	if is_admin "$1" && (($(admins) <= 1)); then die "$1 is the only administrator"; fi
+}
+
+case $action in
+add)
+	full=${3-} kind=${4-}
+	[[ $full != *[:,$'\n']* ]] || die "names can't contain : or ,"
+	[[ $kind == admin || $kind == standard ]] || die "admin or standard?"
+	if id "$name" &>/dev/null; then die "$name is taken"; fi
+	IFS= read -r password || true
+	[[ -n $password ]] || die "no password"
+	groups=()
+	[[ $kind == standard ]] || groups=(-G wheel)
+	"${run[@]}" useradd -m -c "$full" "${groups[@]}" "$name"
+	if ((${#run[@]})); then
+		echo "chpasswd $name"
+	else
+		printf '%s:%s\n' "$name" "$password" | chpasswd
+	fi
+	;;
+delete)
+	regular "$name"
+	last_admin "$name"
+	"${run[@]}" userdel "$name"
+	;;
+admin)
+	regular "$name"
+	case ${3-} in
+	yes) "${run[@]}" gpasswd -a "$name" wheel ;;
+	no)
+		last_admin "$name"
+		"${run[@]}" gpasswd -d "$name" wheel
+		;;
+	*) die "admin NAME yes|no" ;;
+	esac
+	;;
+*)
+	echo "usage: manage-users [--dry-run] add NAME FULLNAME admin|standard | delete NAME | admin NAME yes|no" >&2
+	exit 2
+	;;
+esac

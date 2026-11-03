@@ -1,0 +1,6 @@
+#!/bin/sh
+# devine-store: open the Store, a divine-shell window. `devine-store updates` opens its Updates tab.
+if [ "$1" = updates ]; then
+  exec qs -p /usr/share/divine-shell ipc call store show updates
+fi
+exec qs -p /usr/share/divine-shell ipc call store toggle

@@ -1,6 +1,6 @@
 post_install() {
   plymouth-set-default-theme divineos
-  systemctl enable greetd.service ananicy-cpp.service NetworkManager.service bluetooth.service
+  systemctl enable greetd.service ananicy-cpp.service NetworkManager.service bluetooth.service cups.socket avahi-daemon.service
   systemctl set-default graphical.target
   _trust_repo
 }

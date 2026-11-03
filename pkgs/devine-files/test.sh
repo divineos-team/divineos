@@ -11,11 +11,13 @@ cat >"$tmp/bin/gio" <<STUB
 #!/usr/bin/env bash
 echo "gio \$*" >>"$tmp/log"
 STUB
-cat >"$tmp/bin/bsdtar" <<'STUB'
+cat >"$tmp/bin/bsdtar" <<STUB
 #!/usr/bin/env bash
+# bsdtar -a -cf ZIP -C DIR NAME...: logs the call and makes ZIP
+if [[ \$1 == -a ]]; then echo "bsdtar \$*" >>"$tmp/log"; touch "\$3"; exit; fi
 # bsdtar -xf ARCHIVE -C DIR: "bad.zip" fails, anything else yields one file
-[[ $2 == */bad.zip ]] && exit 1
-touch "$4/extracted"
+[[ \$2 == */bad.zip ]] && exit 1
+touch "\$4/extracted"
 STUB
 chmod +x "$tmp/bin/"*
 run() { PATH="$tmp/bin:$PATH" bash "$op" "$@"; }
@@ -60,6 +62,15 @@ run extract b a/pics.tar.gz
 fails extract b a/bad.zip
 [[ ! -e b/bad ]]
 pass "extract: one folder per archive, numbered on clash, removed on failure"
+
+[[ $(run compress b a/dir) == "b/dir.zip" ]]
+grep -qx "bsdtar -a -cf b/dir.zip -C a dir" log
+touch a/-x
+[[ $(run compress b a/dir a/-x) == "b/Archive.zip" ]]
+grep -qx "bsdtar -a -cf b/Archive.zip -C a dir ./-x" log
+[[ $(run compress b a/dir) == "b/dir 2.zip" ]]
+fails compress b a/dir b/photo.jpg
+pass "compress: one zip named after the item or Archive, numbered, one folder at a time"
 
 first=$(run mkdir b)
 second=$(run mkdir b)

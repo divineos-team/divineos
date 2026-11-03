@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# divine-pkg's privileged half, run as root through pkexec (polkit action org.divineos.pkg.manage).
+# The Store and Settings install, remove and update repo packages and drivers through it.
+#   pkg-helper [--dry-run] install NAME...   install; updates the system too (Arch has no partial upgrades)
+#   pkg-helper [--dry-run] remove NAME...    remove, with the dependencies nothing else needs
+#   pkg-helper [--dry-run] upgrade           update everything from the repos
+#   pkg-helper [--dry-run] drivers [ID...]   divine-drivers --install
+set -euo pipefail
+
+die() {
+	echo "pkg-helper: $*" >&2
+	exit 1
+}
+
+run=()
+if [[ ${1-} == --dry-run ]]; then
+	run=(echo)
+	shift
+fi
+action=${1-}
+shift || true
+# Names become pacman arguments: never options, never anything a package name can't be.
+for name in "$@"; do
+	[[ $name =~ ^[a-zA-Z0-9@_+][a-zA-Z0-9@._+-]*$ ]] || die "refusing '$name'"
+done
+
+case $action in
+install)
+	(($#)) || die "install what?"
+	cmd=(pacman -Syu --needed --noconfirm -- "$@")
+	;;
+remove)
+	(($#)) || die "remove what?"
+	cmd=(pacman -Rns --noconfirm -- "$@")
+	;;
+upgrade)
+	(($# == 0)) || die "upgrade takes no names"
+	cmd=(pacman -Syu --noconfirm)
+	;;
+drivers)
+	cmd=(divine-drivers --install "$@")
+	;;
+*)
+	echo "usage: pkg-helper [--dry-run] install NAME... | remove NAME... | upgrade | drivers [ID...]" >&2
+	exit 2
+	;;
+esac
+exec "${run[@]}" "${cmd[@]}"

@@ -26,6 +26,8 @@ hl.on("hyprland.start", function()
         .. "systemctl --user start hyprpolkitagent")
     hl.exec_cmd("hypridle") -- locks after 5 idle minutes and before sleep (hypridle.conf)
     hl.exec_cmd("wl-paste --watch cliphist store") -- clipboard history (Super+Shift+V)
+    -- Settings > Startup Apps: systemd starts ~/.config/autostart and /etc/xdg/autostart entries
+    hl.exec_cmd("systemctl --user start xdg-desktop-autostart.target")
 end)
 
 hl.env("XCURSOR_THEME", "divineOS") -- divine-cursors
@@ -97,6 +99,9 @@ hl.config({
     },
 })
 
+-- Touchpad: swipe between workspaces (Settings > Mouse & Touchpad changes the fingers).
+hl.gesture({ fingers = 3, direction = "horizontal", action = "workspace" })
+
 -- Motion: springs for windows, quick fades for overlays.
 hl.curve("glass",        { type = "spring", mass = 1, stiffness = 238.1191, damping = 24.21279333 })
 hl.curve("easeOutQuint", { type = "bezier", points = { {0.23, 1}, {0.32, 1} } })
@@ -109,16 +114,16 @@ hl.animation({ leaf = "layersIn",   enabled = true, speed = 4,    bezier = "ease
 hl.animation({ leaf = "layersOut",  enabled = true, speed = 1.5,  bezier = "easeOutQuint", style = "fade" })
 hl.animation({ leaf = "workspaces", enabled = true, speed = 4,    spring = "glass",        style = "slide" })
 
--- Settings, System Monitor, Welcome and the installer float instead of tiling.
+-- Settings, the Store, System Monitor, Welcome, Mark Up and the installer float instead of tiling.
 hl.window_rule({
     name  = "divine-utility-windows",
-    match = { title = "^(System Monitor|Settings|Welcome|Install divineOS)$" },
+    match = { title = "^(System Monitor|Settings|Store|Welcome|Mark Up|Install divineOS)$" },
     float = true,
 })
 
 -- divine-shell glass panels: blur only where tiles are drawn, pop in like macOS.
 hl.layer_rule({
-    match        = { namespace = "^divine-(cc|launcher|dock|nc|notifications|osd|switcher|overview|capture)$" },
+    match        = { namespace = "^divine-(cc|launcher|dock|taskbar|widgets|nc|notifications|osd|switcher|overview|capture)$" },
     blur         = true,
     ignore_alpha = 0.15,
     animation    = "popin 90%",
@@ -166,6 +171,6 @@ hl.bind("XF86AudioMute",         hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_
 hl.bind("XF86MonBrightnessUp",   hl.dsp.global("divine:brightness-up"),                             { locked = true, repeating = true })
 hl.bind("XF86MonBrightnessDown", hl.dsp.global("divine:brightness-down"),                           { locked = true, repeating = true })
 
--- Choices made in Settings (displays, glass, animations). Loaded last so they win; the
+-- Choices made in Settings (displays, windows, glass, motion, pointer, keyboard). Loaded last so they win; the
 -- file doesn't exist until the first change, hence pcall.
 pcall(require, "tweaks")

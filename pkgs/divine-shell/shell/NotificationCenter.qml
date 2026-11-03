@@ -17,6 +17,8 @@ PanelWindow {
         if (!open && Date.now() - closedAt < 250)
             return;
         open = !open;
+        if (open)
+            content.reset();
     }
     function close() {
         open = false;
@@ -25,9 +27,11 @@ PanelWindow {
 
     visible: open
     screen: Array.from(Quickshell.screens).find(s => s.name === Hyprland.focusedMonitor?.name) ?? null
-    anchors.top: true
+    anchors.top: Sys.layout !== "windows" // over the taskbar in the Windows layout
+    anchors.bottom: Sys.layout === "windows"
     anchors.right: true
     margins.top: 6
+    margins.bottom: 6
     margins.right: 12
     implicitWidth: content.implicitWidth
     implicitHeight: content.implicitHeight
@@ -47,6 +51,7 @@ PanelWindow {
         id: content
         focus: true
         now: win.now
+        maxHeight: (win.screen?.height ?? 760) - 40
         Keys.onEscapePressed: win.close()
     }
 }

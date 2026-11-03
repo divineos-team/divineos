@@ -1,0 +1,11 @@
+# Instead of Timeshift's cron jobs: divineOS has no cron.
+[Unit]
+Description=Daily system snapshot (Settings > Backup)
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target

@@ -1,18 +1,39 @@
 import QtQuick
 
-// Notification Center: Do Not Disturb, Clear, and every notification not yet dismissed,
-// newest first.
+// Notification Center: the calendar and the weather, then Do Not Disturb, Clear, and every
+// notification not yet dismissed, newest first.
 Item {
     id: nc
 
     property date now: new Date()
+    property real maxHeight: 720
     signal dismiss
+    function reset() { // on opening: back to this month
+        calendar.offset = 0;
+    }
 
     implicitWidth: 360
-    implicitHeight: Math.min(head.height + 10 + (list.count ? list.contentHeight : empty.height), 720)
+    implicitHeight: Math.min(head.y + head.height + 10 + (list.count ? list.contentHeight : empty.height), maxHeight)
+
+    Column {
+        id: widgets
+        width: parent.width
+        spacing: 10
+        CalendarCard {
+            id: calendar
+            width: parent.width
+            now: nc.now
+        }
+        WeatherCard {
+            width: parent.width
+            visible: Sys.weatherOn && Sys.weather !== null
+        }
+    }
 
     Item {
         id: head
+        anchors.top: widgets.bottom
+        anchors.topMargin: 6
         width: parent.width
         height: 40
 
@@ -43,8 +64,8 @@ Item {
                     id: pillRow
                     anchors.centerIn: parent
                     spacing: 6
-                    Glyph { id: pillGlyph; visible: text !== ""; font.pixelSize: 15; color: pill.on ? Theme.accent : Theme.text }
-                    Label { id: pillLabel; font.pixelSize: 12; font.weight: Font.Medium; color: pill.on ? Theme.accent : Theme.text }
+                    Glyph { id: pillGlyph; visible: text !== ""; font.pixelSize: 15; color: pill.on ? Theme.accentInk : Theme.text }
+                    Label { id: pillLabel; font.pixelSize: 12; font.weight: Font.Medium; color: pill.on ? Theme.accentInk : Theme.text }
                 }
             }
 

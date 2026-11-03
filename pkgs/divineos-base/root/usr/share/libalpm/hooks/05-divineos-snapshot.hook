@@ -1,0 +1,13 @@
+# A Timeshift snapshot before packages change, so a broken update can be undone from
+# Settings > Backup or the boot menu's "divineOS snapshots".
+[Trigger]
+Type = Package
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Target = *
+
+[Action]
+Description = Making a system snapshot...
+When = PreTransaction
+Exec = /usr/lib/divineos/snapshot

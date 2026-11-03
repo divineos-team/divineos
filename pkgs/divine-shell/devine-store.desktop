@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Store
+GenericName=Software Center
+Comment=Install apps from Arch and the AUR, and keep divineOS up to date
+Exec=devine-store
+Icon=devine-store
+Categories=System;PackageManager;
+Keywords=apps;software;install;remove;uninstall;update;upgrade;packages;pacman;aur;store;

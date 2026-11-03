@@ -17,6 +17,7 @@ Item {
     property string wallpaper: ""
     property int userCount: 1
     property bool showPower: false
+    property bool clock24: false
 
     signal submit(string password)
     signal switchUser(int delta)
@@ -62,7 +63,7 @@ Item {
         }
         Label {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: Qt.formatTime(lock.now, "h:mm AP").replace(/\s*[AP]M$/i, "") // 12-hour like the menu bar, without AM/PM
+            text: lock.clock24 ? Qt.formatTime(lock.now, "H:mm") : Qt.formatTime(lock.now, "h:mm AP").replace(/\s*[AP]M$/i, "") // like the menu bar, without AM/PM
             color: Theme.barText
             font.pixelSize: 120
             font.weight: Font.Bold

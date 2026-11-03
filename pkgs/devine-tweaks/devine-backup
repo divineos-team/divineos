@@ -1,0 +1,3 @@
+#!/bin/sh
+# devine-backup: make and restore system snapshots, in Settings > Backup.
+exec devine-tweaks backup

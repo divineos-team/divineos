@@ -15,4 +15,61 @@
     </defaults>
     <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/devine-tweaks/apply-sysctl</annotate>
   </action>
+
+  <action id="org.divineos.tweaks.manage-users">
+    <description>Add and remove users</description>
+    <message>Authentication is required to change the users on this computer</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/devine-tweaks/manage-users</annotate>
+  </action>
+
+  <action id="org.divineos.tweaks.printers">
+    <description>Add and remove printers</description>
+    <message>Authentication is required to change the printers on this computer</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/devine-tweaks/printers</annotate>
+  </action>
+
+  <!-- Erasing a drive always asks: no remembered password for this one -->
+  <action id="org.divineos.tweaks.disks">
+    <description>Erase drives and write disc images</description>
+    <message>Authentication is required to erase a drive or write a disc image to it</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/devine-tweaks/disks</annotate>
+  </action>
+
+  <action id="org.divineos.tweaks.backup">
+    <description>Make, restore and delete system snapshots</description>
+    <message>Authentication is required to change the system snapshots</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/devine-tweaks/backup</annotate>
+  </action>
+
+  <!-- Only lists them: no password for whoever is at the computer -->
+  <action id="org.divineos.tweaks.snapshots">
+    <description>List system snapshots</description>
+    <message>Authentication is required to list the system snapshots</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/devine-tweaks/snapshots</annotate>
+  </action>
 </policyconfig>

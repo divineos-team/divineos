@@ -125,7 +125,7 @@ Item {
         case 0:
             if (probeError)
                 return probeError;
-            return !info ? "Looking at this computer…" : info.online ? "" : "Connect to the internet: divineOS downloads about 2 GB while it installs.";
+            return !info ? "Looking at this computer…" : "";
         case 1:
             return diskProblem;
         case 3:
@@ -457,7 +457,7 @@ Item {
                 Choice {
                     icon: root.info?.online ? Theme.icons.wifi : Theme.icons.wifiOff
                     text: !root.info ? "Checking the connection…" : root.info.online ? "Connected to the internet" : "Not connected"
-                    detail: root.info && !root.info.online ? "Connect from the Control Center (Wi-Fi or a cable), then check again." : ""
+                    detail: root.info && !root.info.online ? "Not needed: divineOS installs from this USB. Updates and some drivers download later." : ""
                     on: false
                 }
                 Choice {
@@ -465,13 +465,6 @@ Item {
                     text: !root.info ? "Reading disks…" : root.disks.length === 1 ? "1 disk found" : `${root.disks.length} disks found`
                     detail: root.info ? (root.info.uefi ? "UEFI firmware" : "BIOS (legacy) firmware") : ""
                     on: false
-                }
-                Button {
-                    visible: root.info !== null && !root.info.online
-                    text: "Check Again"
-                    kind: "plain"
-                    Layout.alignment: Qt.AlignRight
-                    onClicked: root.reprobe()
                 }
             }
             Item { Layout.fillHeight: true }
@@ -677,7 +670,7 @@ Item {
                         }
                         Button { text: root.gpartedOpen ? "GParted is open…" : "Open GParted"; kind: "plain"; active: !root.gpartedOpen; onClicked: root.openGparted() }
                     }
-                    Label { text: "divineOS partition (formatted as ext4)"; font.weight: Font.DemiBold; topPadding: 6 }
+                    Label { text: "divineOS partition (formatted as Btrfs)"; font.weight: Font.DemiBold; topPadding: 6 }
                     Repeater {
                         model: root.allParts.filter(p => !root.bootTypes.includes(p.parttype) && p.size >= root.minRoot)
                         Choice {
