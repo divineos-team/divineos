@@ -260,6 +260,11 @@ install() {
   local cfg
   IFS= read -r cfg
   exec 3>&1 1>&2 </dev/null # protocol on fd 3, everything else to the log
+  # A command that fails without its own die stops the install by name, not silently (-E: in
+  # functions too). A failure that's checked (if, ||, while) doesn't count.
+  set -E
+  trap 'die "Stopped on a failed command (line $LINENO): $BASH_COMMAND"' ERR
+  trap 'die "The installer was stopped."' HUP INT TERM
   val() { jq -r "($1) // \"\" | tostring" <<< "$cfg"; }
 
   local mode disk part encrypt passphrase hostname fullname user password timezone locale keymap xkb xkb_options

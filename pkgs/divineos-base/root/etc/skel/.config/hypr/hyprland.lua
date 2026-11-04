@@ -33,6 +33,7 @@ end)
 hl.env("XCURSOR_THEME", "divineOS") -- divine-cursors
 hl.env("XCURSOR_SIZE", "24")
 hl.env("HYPRCURSOR_SIZE", "24")
+hl.env("QS_ICON_THEME", "Adwaita") -- the shell's icons (file types, apps without their own); Settings > Appearance changes it
 
 -------------------------------------------------------------------------------
 -- Look: liquid glass. Every translucent surface (windows, launcher, and later

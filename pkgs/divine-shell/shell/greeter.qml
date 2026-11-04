@@ -81,7 +81,7 @@ ShellRoot {
         }
         function onReadyToLaunch() {
             lastUser.setText(root.user.name + "\n");
-            Greetd.launch(["start-hyprland"]);
+            Greetd.launch(["divine-session"]);
         }
     }
 

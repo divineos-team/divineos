@@ -1,0 +1,12 @@
+#!/bin/sh
+# divineDE's session: Hyprland through its watchdog (start-hyprland). The login screen, tuigreet
+# and the live ISO's autologin all start this.
+# Without a GPU to draw with (a VM without 3D acceleration, a bare framebuffer) Hyprland quits
+# at once; then it starts again on Mesa's software renderer (llvmpipe), which every app it opens
+# inherits: slower, but a working desktop.
+start=$(date +%s)
+start-hyprland && exit 0
+# ponytail: "quit within 20 s" stands in for "couldn't start its renderer"; probe the GPU first if it misfires
+[ $(($(date +%s) - start)) -lt 20 ] || exit 1
+export LIBGL_ALWAYS_SOFTWARE=1
+exec start-hyprland

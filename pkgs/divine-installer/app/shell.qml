@@ -109,10 +109,13 @@ ShellRoot {
         stderr: SplitParser {
             onRead: line => content.log = content.log.slice(-400).concat([line])
         }
-        onExited: code => {
+        onExited: (code, status) => {
             content.installing = false;
-            if (code !== 0 && !content.error)
-                content.error = "The installer stopped unexpectedly. The log below says why.";
+            if (content.error || (code === 0 && status === 0))
+                return;
+            // Killed outright (SIGKILL can't be caught): on a live system that's the kernel freeing memory.
+            content.error = status !== 0 ? "The installer was killed, most likely because the computer ran out of memory. Give it more RAM (4 GB or more) and try again."
+                : `The installer stopped unexpectedly (exit code ${code}). The log below says why.`;
         }
     }
 

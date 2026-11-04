@@ -14,4 +14,7 @@ sw=()
 [[ $(cat /sys/class/dmi/id/sys_vendor 2>/dev/null) == "VMware, Inc." ]] && sw=(env LIBGL_ALWAYS_SOFTWARE=1)
 
 cage -s -m last -- "${sw[@]}" qs -p /usr/share/divine-shell/greeter.qml && exit
-exec tuigreet --time --remember --asterisks --greeting 'divineOS' --cmd start-hyprland
+# No GPU to draw with (a VM without 3D acceleration): cage can't start its renderer and quits at
+# once. Then everything draws on the CPU: wlroots' pixman renderer, Mesa's llvmpipe for the screen.
+WLR_RENDERER=pixman cage -s -m last -- env LIBGL_ALWAYS_SOFTWARE=1 qs -p /usr/share/divine-shell/greeter.qml && exit
+exec tuigreet --time --remember --asterisks --greeting 'divineOS' --cmd divine-session

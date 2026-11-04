@@ -31,7 +31,7 @@ Item {
     // The media tile reads the player itself, so track changes don't rebuild the dock.
     readonly property var apps: Sys.dockApps.map(a => Object.assign({ kind: "app", group: a.pinned ? 0 : 1 }, a)).concat(
         (Sys.player ? [{ id: "media", kind: "media", name: "" }] : []).concat([
-            { id: "downloads", kind: "downloads", name: "Downloads", icon: Sys.iconPath("folder-download", "folder") },
+            { id: "downloads", kind: "downloads", name: "Downloads", icon: Qt.resolvedUrl("icons/downloads.svg") },
             { id: "trash", kind: "trash", name: "Trash" }
         ]).map(s => Object.assign({ group: 2, windows: 0, pinned: false, launchable: false }, s)))
     readonly property int pinnedCount: apps.filter(a => a.group === 0).length
@@ -94,7 +94,7 @@ Item {
         if (item.kind === "media")
             return Sys.player?.trackArtUrl || Sys.iconPath(Sys.player?.desktopEntry || "audio-x-generic", "audio-x-generic");
         if (item.kind === "trash")
-            return Sys.iconPath(Sys.trashFull ? "user-trash-full" : "user-trash", "user-trash");
+            return Qt.resolvedUrl(Sys.trashFull ? "icons/trash-full.svg" : "icons/trash.svg");
         return item.icon;
     }
     function nameOf(item) {

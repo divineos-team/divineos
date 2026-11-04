@@ -3,7 +3,7 @@
 vt = 1
 
 [initial_session]
-command = "start-hyprland"
+command = "divine-session"
 user = "live"
 
 [default_session]

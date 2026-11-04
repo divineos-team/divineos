@@ -27,6 +27,8 @@ depends=(
   divine-pkg kitty pacman-contrib fakeroot flatpak repostation
   # type and glyphs
   inter-font ttf-nerd-fonts-symbols
+  # icons for file types and apps without their own (QS_ICON_THEME in hyprland.lua)
+  adwaita-icon-theme
 )
 backup=(etc/pam.d/divine-lock)
 
@@ -35,7 +37,7 @@ package() {
   # no-preserve: sources may come from a Windows bind mount where every file is 0777
   cp -r --no-preserve=mode,ownership "$startdir/shell/." "$pkgdir/usr/share/divine-shell/"
   install -Dm644 "$startdir/divine-lock.pam" "$pkgdir/etc/pam.d/divine-lock"
-  install -Dm755 "$startdir/divine-greeter" -t "$pkgdir/usr/bin/"
+  install -Dm755 "$startdir/divine-greeter" "$startdir/divine-session" -t "$pkgdir/usr/bin/"
   install -Dm644 "$startdir/divine-greeter.tmpfiles" "$pkgdir/usr/lib/tmpfiles.d/divine-greeter.conf"
   install -Dm755 "$startdir/divine-welcome" -t "$pkgdir/usr/bin/"
   install -Dm644 "$startdir/divine-welcome.desktop" -t "$pkgdir/usr/share/applications/"

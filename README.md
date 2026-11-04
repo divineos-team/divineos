@@ -35,7 +35,7 @@ docker run --rm --privileged -v "${PWD}:/src" archlinux:latest bash /src/build.s
 sudo ./build.sh
 ```
 
-The output is `out/divineos-YYYY.MM.DD-x86_64.iso`. Hyprland needs GPU acceleration, so a VM must have 3D enabled: QEMU with `-device virtio-vga-gl -display gtk,gl=on`, or VMware with "Accelerate 3D graphics". In VMware, apps (the shell included) render on the CPU, because Hyprland can't use buffers from VMware's GPU driver, so expect it to be slower than on real hardware.
+The output is `out/divineos-YYYY.MM.DD-x86_64.iso`. Give a VM 3D acceleration (without it everything draws on the CPU and is slow): QEMU with `-device virtio-vga-gl -display gtk,gl=on`, or VMware with "Accelerate 3D graphics". In VMware, apps (the shell included) render on the CPU, because Hyprland can't use buffers from VMware's GPU driver, so expect it to be slower than on real hardware.
 
 ## Install to disk
 
@@ -155,6 +155,7 @@ divineOS/
 │   │   ├── PKGBUILD
 │   │   ├── divine-lock.pam     PAM config for the lock screen → /etc/pam.d/divine-lock
 │   │   ├── divine-greeter      greetd's greeter: the login screen in cage, tuigreet fallback
+│   │   ├── divine-session      starts Hyprland, again on the CPU if there's no GPU to draw with
 │   │   ├── divine-welcome      opens the Welcome guide (IPC)
 │   │   ├── devine-store        opens the Store (IPC); `devine-store updates` its Updates tab
 │   │   ├── test-js.mjs         checks shell/*.js: accent picker, weather, Night Light, dock, Store, Disks, Backup (node test-js.mjs)
@@ -249,8 +250,8 @@ firmware → GRUB, divineOS theme (UEFI) / syslinux (BIOS) — "divineOS", quiet
       ├─ ananicy-cpp      → auto nice/ionice/sched from CachyOS rules
       ├─ NetworkManager, bluetooth (upower, power-profiles-daemon via D-Bus)
       └─ greetd (display-manager, vt1, replaces getty@tty1)
-           live ISO:  create user "live" → autologin → start-hyprland
-           installed: divine-greeter (cage + qs greeter.qml; tuigreet fallback) → start-hyprland
+           live ISO:  create user "live" → autologin → divine-session → start-hyprland
+           installed: divine-greeter (cage + qs greeter.qml; tuigreet fallback) → divine-session → start-hyprland
   → Hyprland (~/.config/hypr/hyprland.lua from /etc/skel)
       ├─ qs -p /usr/share/divine-shell   wallpaper, menu bar, dock, Control Center, launcher,
       │                                  notifications, OSD, lock screen, app switcher,
@@ -364,8 +365,9 @@ The reactbits `GlassSurface` / `GlassIcons` components fake the same effect insi
 **Login screen:** greetd runs `divine-greeter`, which shows `greeter.qml` fullscreen in the cage kiosk. It looks like the lock screen, with the default wallpaper.
 - Accounts are the passwd entries with uid 1000–59999 and a login shell. Arrows beside the name switch between them, and the last one to log in comes first (`/var/cache/divine-greeter/last-user`).
 - The picture comes from `/var/lib/AccountsService/icons/<user>`, since the greeter can't read your `~/.face`. Settings > Users puts it there.
-- Passwords go to greetd (PAM `greetd`); a correct one starts Hyprland. Restart and Shut Down sit at the bottom.
-- If cage or Quickshell can't start (no usable GPU, a QML error), `divine-greeter` falls back to tuigreet.
+- Passwords go to greetd (PAM `greetd`); a correct one starts `divine-session` (Hyprland). Restart and Shut Down sit at the bottom.
+- No GPU to draw with (a VM without 3D acceleration): cage can't start its renderer, so `divine-greeter` starts it again on the CPU (`WLR_RENDERER=pixman`, Mesa's llvmpipe). `divine-session` does the same for Hyprland when it quits within 20 seconds (`LIBGL_ALWAYS_SOFTWARE=1`). Slow, but it works.
+- If cage or Quickshell still can't start (a QML error), `divine-greeter` falls back to tuigreet.
 
 **Code layout:** `Sys.qml` is the only file that talks to system services. The view files bind to its plain properties, so missing hardware never breaks a view. To render the views on any machine with PySide6, swap in a mock `Sys.qml`.
 
@@ -517,7 +519,7 @@ Open it with `Super+,`, `devine-tweaks [page]` (say `devine-tweaks drivers`), or
 - **From the wallpaper:** `Palette.js` draws the wallpaper into a 64×36 canvas and takes its most common vivid hue (12 hue bins weighted by saturation), at an accent's saturation and brightness. Greyscale pictures get graphite. Choosing another wallpaper while it's on picks again.
 - GTK 4 apps get the nearest of GNOME's accent colours (`accent-color`), plus the colour scheme, icon theme, pointer and font through GSettings.
 - **Motion** rescales `hyprland.lua`'s animations in `tweaks.lua`: bezier durations divide by the factor, and the spring's stiffness and damping multiply by its square and the factor itself, which keeps its bounce.
-- The pointer applies at once (`hyprctl setcursor`, GSettings). The shell reads its icon theme at startup (`QS_ICON_THEME`), so the dock and launcher switch at the next sign-in.
+- The pointer applies at once (`hyprctl setcursor`, GSettings). The shell reads its icon theme at startup (`QS_ICON_THEME`, Adwaita until you choose one), so the dock and launcher switch at the next sign-in.
 
 **Kernel settings** need root. Apply runs `pkexec /usr/lib/devine-tweaks/apply-sysctl …`, and polkit action `org.divineos.tweaks.apply-sysctl` asks for your password through hyprpolkitagent.
 - The helper accepts only four allowlisted keys, each with a regex-validated value. Anything else is refused before any write.
