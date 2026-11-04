@@ -3,7 +3,7 @@
 # The installer window runs it through sudo (the live user needs no password).
 #   backend probe              JSON: firmware, network, disks and the systems on them, time zones, locales
 #   backend shrink-info PART   JSON: the smallest size PART can shrink to, with room to grow ("keep")
-#   backend install            reads the settings as one line of JSON on stdin (see install), prints
+#   backend install            reads the settings as one line of JSON on stdin (see install_system), prints
 #                              "step PCT TEXT" lines, then "done" or "error TEXT"
 # Everything commands print (rsync, mkfs…) goes to stderr: the installer's log.
 set -euo pipefail
@@ -256,7 +256,8 @@ copy_progress() {
 #   "disk": erase/alongside, "part": replace, "shrink": {"part", "size"} or null (alongside),
 #   "root", "esp": manual, "encrypt": erase only, "passphrase",
 #   "hostname", "fullname", "user", "password", "timezone", "locale", "keymap", "xkb", "xkb_options"}
-install() {
+# Not named install: that would shadow coreutils install, which the copy step uses.
+install_system() {
   local cfg
   IFS= read -r cfg
   exec 3>&1 1>&2 </dev/null # protocol on fd 3, everything else to the log
@@ -480,7 +481,7 @@ if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
   case ${1:-} in
   probe) probe ;;
   shrink-info) shrink_info "$2" ;;
-  install) install ;;
+  install) install_system ;;
   *) echo "usage: backend probe | shrink-info PART | install" >&2; exit 2 ;;
   esac
 fi

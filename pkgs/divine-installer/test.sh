@@ -11,6 +11,8 @@ check() { # name expected actual
   if [[ $2 == "$3" ]]; then echo "ok   $1"; else printf 'FAIL %s\n--- expected\n%s\n--- got\n%s\n' "$1" "$2" "$3"; fail=1; fi
 }
 
+# A function named like a command (install) silently runs instead of it.
+check "no function shadows a command" "" "$(for f in $(compgen -A function); do type -P "$f" || true; done)"
 check "sata partition" /dev/sda2 "$(part_path /dev/sda 2)"
 check "nvme partition" /dev/nvme0n1p2 "$(part_path /dev/nvme0n1 2)"
 check "mmc partition" /dev/mmcblk0p1 "$(part_path /dev/mmcblk0 1)"
