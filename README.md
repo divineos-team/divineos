@@ -78,7 +78,7 @@ Things to know:
 
 ## Boot menu
 
-On UEFI, the ISO starts divineOS's own GRUB menu (`iso/grub/grub.cfg`): a glass panel over the dimmed Tide wallpaper, with Try divineOS, a text-console mode, Boot from the next device, Firmware settings, Restart and Shut down. Installed systems get the same theme for their GRUB menu.
+On UEFI, the ISO starts divineOS's own GRUB menu (`iso/grub/grub.cfg`): a glass panel over the dimmed Tide wallpaper, with Try divineOS, a text-console mode, Boot from the next device, Firmware settings, Restart and Shut down. Installed systems get the same theme for their GRUB menu on UEFI; on BIOS, GRUB's text menu (the graphical one triple-faults VMware on Hyper-V hosts).
 
 The theme is `branding/grub/theme.txt`. `divineos-base`'s `build()` renders the images it names (background, panel, logo, entry icons, the selected-entry highlight) and the Inter fonts (`grub-mkfont`) into `/usr/share/grub/themes/divineos`.
 

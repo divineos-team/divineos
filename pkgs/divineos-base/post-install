@@ -131,6 +131,10 @@ main() {
     set_var /etc/default/grub GRUB_DISTRIBUTOR '"divineOS"' # also the menu entry's icon class
     set_var /etc/default/grub GRUB_TIMEOUT_STYLE menu
     set_var /etc/default/grub GRUB_DISABLE_OS_PROBER false # list Windows and other systems
+    # BIOS: the graphical menu took VMware down (on Hyper-V hosts): about 2 s into it, GRUB's next
+    # BIOS call found the interrupt vectors zeroed and the CPU triple-faulted. The text menu only
+    # uses the BIOS's own screen; theme above stays for UEFI.
+    [[ -d /sys/firmware/efi ]] || set_var /etc/default/grub GRUB_TERMINAL_OUTPUT console
   fi
 
   for f in /etc/mkinitcpio.conf /etc/mkinitcpio.conf.d/*.conf; do
