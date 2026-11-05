@@ -389,8 +389,11 @@ install_system() {
   # Copied before /boot and the ESP are mounted: the image's /boot is empty, and a FAT ESP can't
   # take rsync's owners.
   # ponytail: rsync from the mounted squashfs is single-threaded; unsquashfs if copying gets slow
+  # No -S: sparse copies turn runs of zeros into holes, and GRUB's Btrfs reader stops at a hole
+  # at the end of a file (the kernel's zero tail: "premature end of file"). The copies made from
+  # these files later (the kernel into /boot, GRUB's theme) keep them dense.
   step 15 "Copying divineOS"
-  rsync -aHAXS --numeric-ids --info=progress2 --no-inc-recursive "$live/" /mnt/ | copy_progress ||
+  rsync -aHAX --numeric-ids --info=progress2 --no-inc-recursive "$live/" /mnt/ | copy_progress ||
     die "Copying divineOS failed."
   [[ -z $boot ]] || mount --mkdir "$boot" /mnt/boot
   [[ -z $esp ]] || mount --mkdir "$esp" "/mnt$espdir"

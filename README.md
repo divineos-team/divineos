@@ -55,7 +55,7 @@ Boot the ISO. The Welcome guide opens with an **Install divineOS** button; the i
 Things to know:
 - **Windows must shut down fully before it can be shrunk.** With Fast Startup on, Windows hibernates instead, and `ntfsresize` refuses the partition. Turn Fast Startup off in Windows' power settings and shut down.
 - After an Alongside or Replace install, GRUB lists Windows and other systems (os-prober).
-- The root is Btrfs in Timeshift's layout: subvolumes `@` (the system), `@home`, `@log` (`/var/log`) and `@pkg` (`/var/cache/pacman/pkg`), mounted with `compress=zstd,noatime`. Snapshots of `@` are Settings > Backup's and the boot menu's; logs, downloaded packages and your files stay out of them.
+- The root is Btrfs in Timeshift's layout: subvolumes `@` (the system), `@home`, `@log` (`/var/log`) and `@pkg` (`/var/cache/pacman/pkg`), mounted with `compress=zstd,noatime`. Copied without sparse holes (no `rsync -S`): GRUB's Btrfs reader stops at a hole at the end of a file, such as the kernel's zero tail. Snapshots of `@` are Settings > Backup's and the boot menu's; logs, downloaded packages and your files stay out of them.
 - VM guest tools (VMware, VirtualBox, QEMU, Hyper-V) are on the ISO, so the install keeps the ones this machine needs and turns them on. Drivers that have to download (NVIDIA, Vulkan for Intel and AMD) are one click in Settings > Drivers after the first boot.
 
 **How it works.** The window (`/usr/share/divine-installer`, Quickshell) runs `/usr/lib/divine-installer/backend` as root through sudo; the live user needs no password.
